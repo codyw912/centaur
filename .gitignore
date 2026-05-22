@@ -10,6 +10,7 @@ build/
 # Virtual environments
 .venv/
 venv/
+.devenv/
 
 # uv
 uv.lock

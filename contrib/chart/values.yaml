@@ -222,6 +222,29 @@ slackbot:
   extraEnv: {}
   resources: {}
 
+matrixbot:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: centaur-matrixbot
+    tag: latest
+    pullPolicy: Always
+  homeserverUrl: ""
+  userId: ""
+  deviceId: centaur-matrixbot
+  defaultHarness: claude-code
+  processInitialSync: false
+  syncTimeoutMs: 30000
+  pollIntervalMs: 1000
+  syncTokenPath: /var/lib/centaur-matrixbot/sync-token
+  allowedRooms: ""
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClassName: ""
+  extraEnv: {}
+  resources: {}
+
 postgres:
   enabled: true
   image:

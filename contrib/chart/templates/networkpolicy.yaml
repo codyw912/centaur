@@ -95,6 +95,11 @@ spec:
             matchLabels:
 {{ include "centaur.componentSelectorLabels" (dict "root" . "component" "slackbot") | nindent 14 }}
 {{- end }}
+{{- if .Values.matrixbot.enabled }}
+        - podSelector:
+            matchLabels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "matrixbot") | nindent 14 }}
+{{- end }}
         - podSelector:
             matchLabels:
 {{ include "centaur.componentSelectorLabels" (dict "root" . "component" "iron-proxy") | nindent 14 }}
@@ -217,6 +222,41 @@ spec:
           port: 443
 ---
 {{- end }}
+{{- if .Values.matrixbot.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "centaur.componentName" (dict "root" . "component" "matrixbot") }}
+  labels:
+{{ include "centaur.componentLabels" (dict "root" . "component" "matrixbot") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "matrixbot") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "api") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              centaur.ai/iron-proxy: "true"
+              centaur.ai/sandbox-id: api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.ironProxy.service.proxyPort }}
+    # Matrix sync and message delivery use HTTPS through the configured proxy.
+    - ports:
+        - protocol: TCP
+          port: 443
+---
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -244,6 +284,11 @@ spec:
         - podSelector:
             matchLabels:
               centaur.ai/component: workflow-run
+{{- if .Values.matrixbot.enabled }}
+        - podSelector:
+            matchLabels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "matrixbot") | nindent 14 }}
+{{- end }}
 {{- range .Values.runnerAccess.allowedCidrs }}
         - ipBlock:
             cidr: {{ . | quote }}

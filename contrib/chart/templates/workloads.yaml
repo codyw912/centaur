@@ -564,3 +564,132 @@ spec:
           secret:
             secretName: {{ include "centaur.trustedCaSecretName" . }}
 {{- end }}
+---
+{{- if .Values.matrixbot.enabled }}
+{{- if .Values.matrixbot.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "centaur.componentName" (dict "root" . "component" "matrixbot-state") }}
+  labels:
+{{ include "centaur.componentLabels" (dict "root" . "component" "matrixbot") | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.matrixbot.persistence.size | quote }}
+{{- if .Values.matrixbot.persistence.storageClassName }}
+  storageClassName: {{ .Values.matrixbot.persistence.storageClassName | quote }}
+{{- end }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "centaur.componentName" (dict "root" . "component" "matrixbot") }}
+  labels:
+{{ include "centaur.componentLabels" (dict "root" . "component" "matrixbot") | nindent 4 }}
+spec:
+  replicas: {{ .Values.matrixbot.replicaCount }}
+  selector:
+    matchLabels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "matrixbot") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret-env: {{ toJson (dict "secretManager" .Values.secretManager "firewallCa" .Values.firewall.ca) | sha256sum }}
+        checksum/firewall-ca: {{ toJson .Values.firewall.ca | sha256sum }}
+        checksum/infra-secrets: {{ include "centaur.infraSecretsChecksum" . }}
+      labels:
+{{ include "centaur.componentSelectorLabels" (dict "root" . "component" "matrixbot") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: matrixbot
+          image: {{ printf "%s:%s" .Values.matrixbot.image.repository .Values.matrixbot.image.tag | quote }}
+          imagePullPolicy: {{ .Values.matrixbot.image.pullPolicy }}
+          env:
+            - name: PORT
+              value: "3002"
+            - name: MATRIX_HOMESERVER_URL
+              value: {{ .Values.matrixbot.homeserverUrl | quote }}
+            - name: MATRIX_USER_ID
+              value: {{ .Values.matrixbot.userId | quote }}
+            - name: MATRIX_DEVICE_ID
+              value: {{ .Values.matrixbot.deviceId | quote }}
+            - name: MATRIX_DEFAULT_HARNESS
+              value: {{ .Values.matrixbot.defaultHarness | quote }}
+            - name: MATRIX_PROCESS_INITIAL_SYNC
+              value: {{ ternary "true" "false" .Values.matrixbot.processInitialSync | quote }}
+            - name: MATRIX_SYNC_TIMEOUT_MS
+              value: {{ .Values.matrixbot.syncTimeoutMs | quote }}
+            - name: MATRIX_POLL_INTERVAL_MS
+              value: {{ .Values.matrixbot.pollIntervalMs | quote }}
+            - name: MATRIX_SYNC_TOKEN_PATH
+              value: {{ .Values.matrixbot.syncTokenPath | quote }}
+            - name: MATRIX_ALLOWED_ROOMS
+              value: {{ .Values.matrixbot.allowedRooms | quote }}
+            - name: MATRIX_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centaur.secretEnvName" . }}
+                  key: {{ printf "%sMATRIX_ACCESS_TOKEN" .Values.secretManager.envPrefix }}
+            - name: MATRIXBOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centaur.secretEnvName" . }}
+                  key: {{ printf "%sMATRIXBOT_API_KEY" .Values.secretManager.envPrefix }}
+            - name: CENTAUR_API_URL
+              value: {{ printf "http://%s:8000" (include "centaur.componentName" (dict "root" . "component" "api")) | quote }}
+            - name: HTTPS_PROXY
+              value: {{ include "centaur.firewallProxyUrl" . | quote }}
+            - name: HTTP_PROXY
+              value: {{ include "centaur.firewallProxyUrl" . | quote }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: /firewall-certs/ca-cert.pem
+            - name: NO_PROXY
+              value: {{ printf "localhost,127.0.0.1,%s,%s,centaur-egress.svc.cluster.local,.centaur-egress.svc.cluster.local" (include "centaur.componentName" (dict "root" . "component" "api")) (include "centaur.firewallNoProxyHosts" .) | quote }}
+            - name: no_proxy
+              value: {{ printf "localhost,127.0.0.1,%s,%s,centaur-egress.svc.cluster.local,.centaur-egress.svc.cluster.local" (include "centaur.componentName" (dict "root" . "component" "api")) (include "centaur.firewallNoProxyHosts" .) | quote }}
+{{- range $name, $value := .Values.matrixbot.extraEnv }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+{{- end }}
+          ports:
+            - containerPort: 3002
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+          volumeMounts:
+            - name: firewall-ca
+              mountPath: /firewall-certs
+              readOnly: true
+            - name: matrixbot-state
+              mountPath: /var/lib/centaur-matrixbot
+          securityContext:
+{{ toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+{{ toYaml .Values.matrixbot.resources | nindent 12 }}
+      volumes:
+        - name: firewall-ca
+          secret:
+            secretName: {{ include "centaur.trustedCaSecretName" . }}
+        - name: matrixbot-state
+{{- if .Values.matrixbot.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "centaur.componentName" (dict "root" . "component" "matrixbot-state") }}
+{{- else }}
+          emptyDir: {}
+{{- end }}
+{{- end }}

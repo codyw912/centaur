@@ -146,6 +146,54 @@ ROOM_ID=$(scripts/local-matrix.sh create-room)
 scripts/local-matrix.sh send-mention "$ROOM_ID" "reply with exactly PONG"
 ```
 
+Use `scripts/local-matrixbot-smoke.sh` to run the full local Matrixbot loop
+against Synapse and a stub Centaur API. It sends a mention, returns a stubbed
+`PONG` final delivery, and verifies the reply in the Matrix room.
+The stub enforces the durable client protocol:
+`POST /agent/spawn` → `POST /agent/message` → `POST /agent/execute`.
+
+For local Kubernetes testing with the Helm-managed Matrixbot deployment, keep
+the same firewall-proxy path as Slackbot and point Matrixbot at a homeserver
+reachable through standard HTTPS egress:
+
+```bash
+scripts/local-matrix.sh start
+eval "$(scripts/local-matrix.sh env)"
+just up
+
+nix-shell -p kubernetes-helm --run '
+  helm upgrade centaur contrib/chart -n centaur --reuse-values \
+    --set matrixbot.enabled=true \
+    --set matrixbot.homeserverUrl=https://matrix.example.com \
+    --set matrixbot.userId=@centaur:localhost \
+    --set matrixbot.allowedRooms='!roomid:example.com' \
+    --set matrixbot.persistence.enabled=true \
+    --set matrixbot.image.pullPolicy=IfNotPresent
+'
+```
+
+The chart gives Matrixbot the same firewall proxy environment as Slackbot. For
+the disposable local Synapse on `localhost:8008`, use the local smoke script or
+run Matrixbot outside the cluster; do not broaden the production chart's egress
+model just for that test shape.
+
+Set `matrixbot.allowedRooms` to a comma-separated list of Matrix room IDs before
+using real model credentials. Leave it empty only for local experiments. Enable
+`matrixbot.persistence` in deployed environments so the Matrix sync token
+survives pod replacement and the bot does not replay old timeline windows.
+
+For repeatable local E2E without a homelab Kubernetes cluster, use:
+
+```bash
+scripts/local-matrix-k8s-e2e.sh
+```
+
+That script runs Synapse locally, exposes it through a temporary HTTPS
+cloudflared tunnel, deploys Helm-managed Matrixbot into the local Kubernetes
+cluster, sends a Matrix mention, waits for `PONG`, releases the runtime, and
+disables Matrixbot afterward. This keeps the chart's firewall/HTTPS egress shape
+intact while avoiding permanent Matrix infrastructure.
+
 The script stores generated Synapse data under `.local/matrix-synapse`, which is
 ignored by git. It configures a local registration shared secret, creates a bot
 user (`centaur`) and test user (`alice`), disables local-dev rate limits, and
@@ -157,10 +205,13 @@ prints Matrixbot-compatible environment exports. Use
 The first useful slice is a text-only Matrixbot:
 
 - Configuration: homeserver URL, access token, user id, Centaur API URL/key,
-  default harness.
+  default harness, room allowlist, sync token path.
 - Sync loop: receive room message events, ignore own messages, detect mentions.
-- Handoff: call `POST /agent/execute` with `harness: "claude-code"` by default
-  for local testing.
+- Safety: suppress duplicate Matrix event IDs in-process and persist the Matrix
+  sync token when configured.
+- Handoff: use the durable client protocol:
+  `POST /agent/spawn` → `POST /agent/message` → `POST /agent/execute` with
+  `harness: "claude-code"` by default for local testing.
 - Delivery: claim `platform: "matrix"` final-delivery rows and post plain text
   replies into the originating room/thread.
 

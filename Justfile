@@ -19,7 +19,7 @@ build:
       just _build-all-sequential
     else
       pids=()
-      for recipe in _build-api _build-iron-proxy _build-slackbot _build-agent; do
+      for recipe in _build-api _build-iron-proxy _build-slackbot _build-matrixbot _build-agent; do
         just "$recipe" &
         pids+=("$!")
       done
@@ -43,9 +43,13 @@ build-one service:
       api) just _build-api ;;
       iron-proxy) just _build-iron-proxy ;;
       slackbot) just _build-slackbot ;;
+      matrixbot) just _build-matrixbot ;;
       agent|sandbox) just _build-agent ;;
       *) echo "unknown service: {{service}}" >&2; exit 2 ;;
     esac
+
+matrixbot-k8s-e2e *args:
+    scripts/local-matrix-k8s-e2e.sh {{args}}
 
 _build-api:
     docker build -t centaur-api:latest -f services/api/Dockerfile .
@@ -55,6 +59,9 @@ _build-iron-proxy:
 
 _build-slackbot:
     docker build -t centaur-slackbot:latest -f services/slackbot/Dockerfile .
+
+_build-matrixbot:
+    docker build -t centaur-matrixbot:latest -f services/matrixbot/Dockerfile .
 
 _build-agent:
     docker build --target sandbox -t centaur-agent:latest -f services/sandbox/Dockerfile .

@@ -43,6 +43,7 @@ pgdata/
 
 # Docker
 services/sandbox/repos/
+.local/
 
 # Agent / AI IDE config
 .agents/*

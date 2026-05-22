@@ -161,6 +161,12 @@ if secret_exists centaur-infra-env; then
   if ! secret_key_present IRON_CONTROL_SECRET_KEY_BASE; then
     patch_data+=("\"IRON_CONTROL_SECRET_KEY_BASE\":\"$(printf '%s%s' "$(rand_hex)" "$(rand_hex)" | base64 | tr -d '\n')\"")
   fi
+  if [[ -n "${MATRIXBOT_API_KEY:-}" ]]; then
+    patch_data+=("\"MATRIXBOT_API_KEY\":\"$(printf '%s' "$MATRIXBOT_API_KEY" | base64 | tr -d '\n')\"")
+  fi
+  if [[ -n "${MATRIX_ACCESS_TOKEN:-}" ]]; then
+    patch_data+=("\"MATRIX_ACCESS_TOKEN\":\"$(printf '%s' "$MATRIX_ACCESS_TOKEN" | base64 | tr -d '\n')\"")
+  fi
   if [[ "${#patch_data[@]}" -gt 0 ]]; then
     patch_json="{\"data\":{$(IFS=,; echo "${patch_data[*]}")}}"
     kubectl -n "$NAMESPACE" patch secret centaur-infra-env --type merge -p "$patch_json" >/dev/null
@@ -202,6 +208,12 @@ else
   fi
   if [[ -n "${LOCAL_DEV_API_KEY:-}" ]]; then
     secret_args+=(--from-literal=LOCAL_DEV_API_KEY="$LOCAL_DEV_API_KEY")
+  fi
+  if [[ -n "${MATRIXBOT_API_KEY:-}" ]]; then
+    secret_args+=(--from-literal=MATRIXBOT_API_KEY="$MATRIXBOT_API_KEY")
+  fi
+  if [[ -n "${MATRIX_ACCESS_TOKEN:-}" ]]; then
+    secret_args+=(--from-literal=MATRIX_ACCESS_TOKEN="$MATRIX_ACCESS_TOKEN")
   fi
   kubectl "${secret_args[@]}" >/dev/null
   echo "Created Secret centaur-infra-env in namespace $NAMESPACE"

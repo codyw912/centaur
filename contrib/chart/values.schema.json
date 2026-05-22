@@ -210,6 +210,29 @@
         }
       }
     },
+    "matrixbot": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "homeserverUrl": { "type": "string" },
+        "userId": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "defaultHarness": { "type": "string" },
+        "processInitialSync": { "type": "boolean" },
+        "syncTimeoutMs": { "type": "integer" },
+        "pollIntervalMs": { "type": "integer" },
+        "syncTokenPath": { "type": "string" },
+        "allowedRooms": { "type": "string" },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "size": { "type": "string" },
+            "storageClassName": { "type": "string" }
+          }
+        }
+      }
+    },
     "runnerAccess": {
       "type": "object",
       "properties": {

@@ -28,8 +28,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: paradigmxyz/centaur
-  IMAGE_SOURCE: https://github.com/paradigmxyz/centaur
+  IMAGE_NAMESPACE: ${{ github.repository }}
+  IMAGE_SOURCE: https://github.com/${{ github.repository }}
 
 jobs:
   publish:
@@ -45,6 +45,10 @@ jobs:
           - service: slackbot
             image: centaur-slackbot
             dockerfile: services/slackbot/Dockerfile
+            target: ""
+          - service: matrixbot
+            image: centaur-matrixbot
+            dockerfile: services/matrixbot/Dockerfile
             target: ""
           - service: agent
             image: centaur-agent

@@ -3,6 +3,7 @@ set dotenv-load := true
 namespace := env_var_or_default("CENTAUR_NAMESPACE", "centaur")
 release := env_var_or_default("CENTAUR_RELEASE", "centaur")
 source := env_var_or_default("CENTAUR_IMAGE_SOURCE", "local")
+ghcr_namespace := env_var_or_default("CENTAUR_GHCR_NAMESPACE", "codyw912/centaur")
 chart := "contrib/chart"
 dev_values := "contrib/chart/values.dev.yaml"
 # Command used to import images into k3s's containerd. Override for rootless or
@@ -34,6 +35,7 @@ _build-all-sequential:
     just _build-api
     just _build-iron-proxy
     just _build-slackbot
+    just _build-matrixbot
     just _build-agent
 
 build-one service:
@@ -72,7 +74,7 @@ _build-agent:
 _import-k3s:
     #!/usr/bin/env bash
     set -euo pipefail
-    for img in centaur-api centaur-iron-proxy centaur-slackbot centaur-agent; do
+    for img in centaur-api centaur-iron-proxy centaur-slackbot centaur-matrixbot centaur-agent; do
       echo "importing ${img}:latest into k3s containerd..."
       docker save "${img}:latest" | {{k3s_ctr}} images import -
     done
@@ -89,10 +91,11 @@ deploy:
       local) ;;
       ghcr)
         extra_args+=(
-          --set api.image.repository=ghcr.io/paradigmxyz/centaur/centaur-api
-          --set ironProxy.image.repository=ghcr.io/paradigmxyz/centaur/centaur-iron-proxy
-          --set slackbot.image.repository=ghcr.io/paradigmxyz/centaur/centaur-slackbot
-          --set sandbox.image.repository=ghcr.io/paradigmxyz/centaur/centaur-agent
+          --set api.image.repository=ghcr.io/{{ghcr_namespace}}/centaur-api
+          --set ironProxy.image.repository=ghcr.io/{{ghcr_namespace}}/centaur-iron-proxy
+          --set slackbot.image.repository=ghcr.io/{{ghcr_namespace}}/centaur-slackbot
+          --set matrixbot.image.repository=ghcr.io/{{ghcr_namespace}}/centaur-matrixbot
+          --set sandbox.image.repository=ghcr.io/{{ghcr_namespace}}/centaur-agent
         )
         ;;
       *) echo "unknown source: {{source}} (expected local or ghcr)" >&2; exit 2 ;;

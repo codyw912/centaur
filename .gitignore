@@ -10,6 +10,7 @@ build/
 # Virtual environments
 .venv/
 venv/
+.devenv/
 
 # uv
 uv.lock
@@ -42,6 +43,7 @@ pgdata/
 
 # Docker
 services/sandbox/repos/
+.local/
 
 # Agent / AI IDE config
 .agents/*

@@ -41,6 +41,42 @@
         "secretTtl": { "type": "string" }
       }
     },
+    "toolServer": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "port": { "type": "integer" }
+      }
+    },
+    "ironControl": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicaCount": { "type": "integer" },
+        "railsEnv": { "type": "string" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string" }
+          }
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "httpPort": { "type": "integer" }
+          }
+        },
+        "resources": { "type": "object" }
+      }
+    },
     "secrets": {
       "type": "object",
       "properties": {
@@ -63,6 +99,10 @@
         "slackSyncIntervalSeconds": { "type": "integer" },
         "slackSyncLookbackDays": { "type": "integer" },
         "slackSyncThreadLookbackDays": { "type": "integer" },
+        "googleDriveEtlEnabled": { "type": "boolean" },
+        "googleDriveSyncIntervalSeconds": { "type": "integer" },
+        "googleCalendarEtlEnabled": { "type": "boolean" },
+        "googleCalendarSyncIntervalSeconds": { "type": "integer" },
         "companyContextDocumentsIntervalSeconds": { "type": "integer" }
       }
     },
@@ -126,10 +166,71 @@
         "resources": { "type": "object" }
       }
     },
+    "agentSandbox": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "namespace": {
+          "type": "object",
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" }
+          }
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string" }
+          }
+        },
+        "controller": {
+          "type": "object",
+          "properties": {
+            "extensions": { "type": "boolean" }
+          }
+        }
+      }
+    },
     "slackbot": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "subPath": { "type": "string" }
+          }
+        }
+      }
+    },
+    "matrixbot": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "homeserverUrl": { "type": "string" },
+        "userId": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "defaultHarness": { "type": "string" },
+        "processInitialSync": { "type": "boolean" },
+        "syncTimeoutMs": { "type": "integer" },
+        "pollIntervalMs": { "type": "integer" },
+        "syncTokenPath": { "type": "string" },
+        "allowedRooms": { "type": "string" },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "size": { "type": "string" },
+            "storageClassName": { "type": "string" }
+          }
+        }
       }
     },
     "runnerAccess": {

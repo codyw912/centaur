@@ -629,6 +629,7 @@ def test_tool_server_container_inherits_sandbox_extra_env(
                     "value": "stg-laminar-app-server,.stg-laminar.svc.cluster.local",
                 },
                 {"name": "HTTPS_PROXY", "value": "http://operator-proxy:8080"},
+                {"name": "CODEX_ACCESS_TOKEN", "value": "must-not-leak"},
             ]
         ),
     )
@@ -652,6 +653,7 @@ def test_tool_server_container_inherits_sandbox_extra_env(
     assert "firewall.internal" in env["NO_PROXY"]
     assert "api.internal" in env["NO_PROXY"]
     assert "stg-laminar-app-server" in env["NO_PROXY"]
+    assert "CODEX_ACCESS_TOKEN" not in env
 
 
 def test_tool_server_container_installs_overlay_deps_before_uvicorn(
@@ -2103,6 +2105,73 @@ async def test_create_uses_brokered_creds_for_codex_oauth(
     # Wrong-engine harness creds must not leak in.
     assert "anthropic-claude" not in proxy_yaml
     assert "ANTHROPIC_API_KEY" not in proxy_yaml
+
+
+@pytest.mark.asyncio
+async def test_create_injects_codex_access_token_as_secret_ref_only_for_codex_oauth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct CODEX_ACCESS_TOKEN bootstrap is available only to Codex
+    access-token pods, and only through a secret ref."""
+    backend = KubernetesExecutorBackend()
+    fake_core = FakeCoreApi()
+    backend._core = fake_core
+    backend._networking = FakeNetworkingApi()
+    _stub_create_dependencies(
+        monkeypatch,
+        backend,
+        extra_env=[
+            {"name": "CODEX_AUTH_MODE", "value": "access_token"},
+            {"name": "CODEX_ACCESS_TOKEN", "value": "must-not-appear"},
+        ],
+        harness_cmd="codex-app-wrapper",
+    )
+
+    await backend.create("slack:C123:123.456", "codex", "codex")
+
+    pod_body = fake_core.created_pods[1][1]
+    sandbox_env = pod_body["spec"]["containers"][0]["env"]
+    codex_token_entries = [
+        item for item in sandbox_env if item["name"] == "CODEX_ACCESS_TOKEN"
+    ]
+    assert codex_token_entries == [
+        {
+            "name": "CODEX_ACCESS_TOKEN",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "centaur-infra-env",
+                    "key": "CODEX_ACCESS_TOKEN",
+                    "optional": True,
+                }
+            },
+        }
+    ]
+    assert "must-not-appear" not in json.dumps(pod_body)
+
+
+@pytest.mark.asyncio
+async def test_create_does_not_inject_codex_access_token_for_non_codex_harness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = KubernetesExecutorBackend()
+    fake_core = FakeCoreApi()
+    backend._core = fake_core
+    backend._networking = FakeNetworkingApi()
+    _stub_create_dependencies(
+        monkeypatch,
+        backend,
+        extra_env=[
+            {"name": "CODEX_AUTH_MODE", "value": "access_token"},
+            {"name": "CODEX_ACCESS_TOKEN", "value": "must-not-appear"},
+        ],
+    )
+
+    await backend.create("slack:C123:123.456", "claude-code", "claude-code")
+
+    pod_body = fake_core.created_pods[1][1]
+    sandbox_env = pod_body["spec"]["containers"][0]["env"]
+    assert all(item["name"] != "CODEX_ACCESS_TOKEN" for item in sandbox_env)
+    assert "must-not-appear" not in json.dumps(pod_body)
 
 
 @pytest.mark.asyncio

@@ -55,6 +55,40 @@ def _write_codex_harness_config(home: Path) -> Path:
     return harness_dir
 
 
+def _write_fake_codex(bin_dir: Path) -> Path:
+    bin_dir.mkdir(parents=True)
+    codex = bin_dir / "codex"
+    codex.write_text(
+        "\n".join(
+            [
+                "#!/bin/sh",
+                "set -eu",
+                'printf "%s\\n" "$*" >> "$CODEX_FAKE_LOG"',
+                'if [ "$1" = "login" ] && [ "${2:-}" = "status" ]; then',
+                '  test -f "$CODEX_FAKE_HOME/logged-in"',
+                "  exit $?",
+                "fi",
+                'if [ "$1" = "login" ] && [ "${2:-}" = "--with-access-token" ]; then',
+                "  token=$(cat)",
+                '  if [ "$token" = "secret-token" ]; then',
+                '    touch "$CODEX_FAKE_HOME/logged-in"',
+                "    exit 0",
+                "  fi",
+                "  exit 2",
+                "fi",
+                'if [ "$1" = "login" ] && [ "${2:-}" = "--with-api-key" ]; then',
+                "  cat >/dev/null",
+                "  exit 0",
+                "fi",
+                "exit 64",
+                "",
+            ]
+        )
+    )
+    codex.chmod(0o755)
+    return codex
+
+
 def test_sandbox_entrypoint_bootstraps_mock_google_adc(tmp_path: Path) -> None:
     home = tmp_path / "home"
     (home / ".config" / "amp").mkdir(parents=True)
@@ -135,3 +169,117 @@ def test_sandbox_entrypoint_installs_codex_harness_config(tmp_path: Path) -> Non
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert result.stdout == (harness_dir / "codex" / "config.toml").read_text()
+
+
+def test_sandbox_entrypoint_bootstraps_codex_access_token_and_unsets_it(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    harness_dir = _write_codex_harness_config(home)
+    fake_home = tmp_path / "fake-codex"
+    fake_home.mkdir()
+    fake_log = tmp_path / "codex.log"
+    bin_dir = tmp_path / "bin"
+    _write_fake_codex(bin_dir)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(ENTRYPOINT_SH),
+            "sh",
+            "-lc",
+            'if printenv CODEX_ACCESS_TOKEN >/dev/null; then exit 9; fi; printf "done"',
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            "HOME": str(home),
+            "PATH": f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+            "CENTAUR_HARNESS_CONFIG_DIR": str(harness_dir),
+            "CODEX_AUTH_MODE": "access_token",
+            "CODEX_ACCESS_TOKEN": "secret-token",
+            "CODEX_FAKE_HOME": str(fake_home),
+            "CODEX_FAKE_LOG": str(fake_log),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.stdout == "done"
+    assert result.stderr == ""
+    assert fake_log.read_text().splitlines() == [
+        "login status",
+        "login --with-access-token",
+        "login status",
+    ]
+    assert "secret-token" not in result.stdout
+    assert "secret-token" not in result.stderr
+    assert "secret-token" not in fake_log.read_text()
+
+
+def test_sandbox_entrypoint_accepts_existing_codex_login_without_direct_token(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    harness_dir = _write_codex_harness_config(home)
+    fake_home = tmp_path / "fake-codex"
+    fake_home.mkdir()
+    (fake_home / "logged-in").touch()
+    fake_log = tmp_path / "codex.log"
+    bin_dir = tmp_path / "bin"
+    _write_fake_codex(bin_dir)
+
+    result = subprocess.run(
+        ["bash", str(ENTRYPOINT_SH), "sh", "-lc", "printf done"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            "HOME": str(home),
+            "PATH": f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+            "CENTAUR_HARNESS_CONFIG_DIR": str(harness_dir),
+            "CODEX_AUTH_MODE": "access_token",
+            "CODEX_FAKE_HOME": str(fake_home),
+            "CODEX_FAKE_LOG": str(fake_log),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.stdout == "done"
+    assert result.stderr == ""
+    assert fake_log.read_text().splitlines() == ["login status", "login status"]
+
+
+def test_sandbox_entrypoint_fails_codex_access_token_mode_without_valid_login(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    harness_dir = _write_codex_harness_config(home)
+    fake_home = tmp_path / "fake-codex"
+    fake_home.mkdir()
+    fake_log = tmp_path / "codex.log"
+    bin_dir = tmp_path / "bin"
+    _write_fake_codex(bin_dir)
+
+    result = subprocess.run(
+        ["bash", str(ENTRYPOINT_SH), "sh", "-lc", "printf unreachable"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={
+            "HOME": str(home),
+            "PATH": f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+            "CENTAUR_HARNESS_CONFIG_DIR": str(harness_dir),
+            "CODEX_AUTH_MODE": "access_token",
+            "CODEX_FAKE_HOME": str(fake_home),
+            "CODEX_FAKE_LOG": str(fake_log),
+        },
+    )
+
+    assert result.returncode == 1
+    assert (
+        "codex login status failed in access_token mode; configure brokered Codex auth"
+        in result.stderr
+    )
+    assert result.stdout == ""
+    assert fake_log.read_text().splitlines() == ["login status", "login status"]

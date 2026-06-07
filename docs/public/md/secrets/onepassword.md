@@ -115,6 +115,21 @@ Store enabled harness credentials the same way:
 
 Each item should live in `OP_VAULT` with its value in `credential`.
 
+Codex ChatGPT subscription auth uses brokered OAuth-style fields instead of a
+single API key. For deployments that use the standard Centaur item layout, the
+optional helper can create or update the expected 1Password items from a local
+`codex login`:
+
+```bash
+codex login
+OP_VAULT=ai-agents contrib/scripts/bootstrap-codex-1password.sh
+```
+
+This writes `OPENAI_CODEX_CLIENT_ID`, `OPENAI_CODEX_BLOB`, and
+`OPENAI_CODEX_ACCOUNT_ID` items with a concealed `credential` field. It is not
+required; corporate deployments can create equivalent items through Terraform,
+External Secrets, 1Password Connect Operator, or another managed process.
+
 ## Verify
 
 Check that the API and [iron-proxy](https://docs.iron.sh) received the expected source mode:

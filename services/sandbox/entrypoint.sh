@@ -80,6 +80,17 @@ fi
 #     installed and the api-key login step is skipped so iron-proxy can
 #     inject the brokered Bearer + chatgpt-account-id headers.
 CODEX_AUTH_MODE="${CODEX_AUTH_MODE:-api_key}"
+case "$CODEX_AUTH_MODE" in
+    api_key)
+        ;;
+    access_token)
+        unset OPENAI_API_KEY CODEX_API_KEY
+        ;;
+    *)
+        echo "unknown CODEX_AUTH_MODE: $CODEX_AUTH_MODE (expected api_key or access_token)" >&2
+        exit 1
+        ;;
+esac
 mkdir -p "$HOME_DIR/.codex"
 if [ "$CODEX_AUTH_MODE" = "access_token" ] && [ -f /etc/centaur/codex-auth.default.json ]; then
     cp /etc/centaur/codex-auth.default.json "$HOME_DIR/.codex/auth.json"
@@ -227,14 +238,32 @@ if [ -x "$HARNESS_ADAPTER" ]; then
     "$HARNESS_ADAPTER" "${1:-}" "$TARGET_PROMPT"
 fi
 
+_codex_login_status() {
+    codex login status >/dev/null 2>&1
+}
+
 # Codex reads its auth file when the app server starts. Complete this before
 # signaling readiness, otherwise warm pods can be claimed with no auth loaded.
-# Skipped under access_token mode — that path relies on the chatgpt auth.json
-# installed above plus iron-proxy injecting the real Bearer at request time.
-if [ "$CODEX_AUTH_MODE" != "access_token" ]; then
+if [ "$CODEX_AUTH_MODE" = "access_token" ]; then
+    # The normal Centaur path is the brokered ChatGPT auth file installed
+    # above; direct CODEX_ACCESS_TOKEN bootstrap is only a fallback for
+    # environments that provide a one-shot CLI token.
+    if ! _codex_login_status && [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
+        if ! printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token >/dev/null 2>&1; then
+            unset CODEX_ACCESS_TOKEN
+            echo "codex access-token login failed" >&2
+            exit 1
+        fi
+    fi
+    unset CODEX_ACCESS_TOKEN
+    if ! _codex_login_status; then
+        echo "codex login status failed in access_token mode; configure brokered Codex auth or provide CODEX_ACCESS_TOKEN" >&2
+        exit 1
+    fi
+else
     CODEX_KEY="${CODEX_API_KEY:-${OPENAI_API_KEY:-}}"
     if [ -n "$CODEX_KEY" ]; then
-        echo "$CODEX_KEY" | codex login --with-api-key 2>/dev/null || true
+        printf '%s' "$CODEX_KEY" | codex login --with-api-key 2>/dev/null || true
     fi
 fi
 

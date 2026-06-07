@@ -37,6 +37,7 @@ These must exist for the normal Helm deployment. For local development,
 | `IRON_MANAGEMENT_API_KEY` | `secretManager.existingSecretName`; local bootstrap generates it. | Management key for API-created iron-proxy pods. |
 | `OP_SERVICE_ACCOUNT_TOKEN` | Local shell, then `centaur-infra-env`; production Secret. | 1Password service-account auth when using `onepassword` secret source. |
 | `OP_VAULT` | Local shell, then `centaur-infra-env`; defaults to `ai-agents` in code. | 1Password vault used for `op://...` secret refs. |
+| `TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN` | Optional local shell, then `centaur-infra-env`; used only when `tokenBroker.onepasswordServiceAccountTokenKey=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN`. | Read/write 1Password service-account token scoped to brokered OAuth refresh-token items. |
 
 Optional required-by-mode variables:
 
@@ -44,6 +45,7 @@ Optional required-by-mode variables:
 | --- | --- | --- |
 | `OP_CONNECT_CREDENTIALS_FILE` | Local shell before `just deploy`. | Enables the 1Password Connect subchart and creates its credentials Secret. |
 | `OP_CONNECT_TOKEN` | Secret or local bootstrap shell env. | Token used by iron-proxy when `ironProxy.secretSource=onepassword-connect`. |
+| `TOKEN_BROKER_OP_VAULT` | Optional local shell before `just deploy`; maps to `tokenBroker.opVault`. | Dedicated 1Password vault for iron-token-broker refs; falls back to `OP_VAULT`. |
 | `LOCAL_DEV_API_KEY` | API env. | Static local admin/dev key bootstrapped into Postgres. |
 
 ## API

@@ -129,9 +129,25 @@ This writes `OPENAI_CODEX_CLIENT_ID`, `OPENAI_CODEX_BLOB`, and
 `OPENAI_CODEX_ACCOUNT_ID` items with a concealed `credential` field. It is not
 required; corporate deployments can create equivalent items through Terraform,
 External Secrets, 1Password Connect Operator, or another managed process.
-Whichever identity serves iron-token-broker must be able to read all three
-items and update `OPENAI_CODEX_BLOB`, because refreshed token state is persisted
-back into that item.
+Whichever identity serves iron-token-broker must be able to read the
+broker-served items and update `OPENAI_CODEX_BLOB`, because refreshed token
+state is persisted back into that item.
+
+For least privilege with service accounts, use a separate writable broker vault
+and token instead of granting write access to the normal `OP_VAULT`:
+
+```bash
+export OP_VAULT=Agents
+export OP_SERVICE_ACCOUNT_TOKEN=... # read-only
+export TOKEN_BROKER_OP_VAULT=CentaurBrokerTokens
+export TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN=... # read/write for broker vault
+just bootstrap-secrets
+CODEX_AUTH_MODE=access_token just deploy
+```
+
+Only the token-broker pod receives `TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN`;
+iron-proxy and ordinary API/tool secrets continue using the read-only
+`OP_SERVICE_ACCOUNT_TOKEN`.
 
 ## Verify
 

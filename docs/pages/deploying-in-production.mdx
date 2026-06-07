@@ -124,8 +124,8 @@ API key. This follows Centaur's normal harness-secret model:
 configured secret backend, mints short-lived access tokens, and iron-proxy
 injects them only for matching `chatgpt.com` requests.
 
-Store these three items in your secrets backend (1Password vault, Kubernetes
-Secret, etc.) when running in `access_token` mode:
+Store these items in your secrets backend (1Password vault, Kubernetes Secret,
+etc.) when running in `access_token` mode:
 
 - `OPENAI_CODEX_CLIENT_ID`: the Codex CLI's OAuth client id. This is a
   fixed, publicly known constant: `app_EMoamEEZ73f0CkXaXp7hrann`. It is
@@ -139,14 +139,33 @@ Secret, etc.) when running in `access_token` mode:
 - `OPENAI_CODEX_ACCOUNT_ID`: the ChatGPT account UUID the credential is
   bound to. It is static, but iron-proxy injects it as the
   `chatgpt-account-id` header so the backend can route to the right
-  workspace. Store it alongside the other two, not in code.
+  workspace. Store it in the normal read-only secret source, not in code.
+
+For least privilege with the 1Password service-account source, keep the normal
+`OP_SERVICE_ACCOUNT_TOKEN` read-only and put the writable broker items in a
+dedicated vault:
+
+```bash
+export OP_VAULT=Agents
+export OP_SERVICE_ACCOUNT_TOKEN=... # read-only for normal API/tool secrets
+export TOKEN_BROKER_OP_VAULT=CentaurBrokerTokens
+export TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN=... # read/write only for broker vault
+just bootstrap-secrets
+CODEX_AUTH_MODE=access_token just deploy
+```
+
+With this split, place `OPENAI_CODEX_CLIENT_ID` and `OPENAI_CODEX_BLOB` in
+`TOKEN_BROKER_OP_VAULT`. The broker renders those refs against that vault, and
+only the token-broker pod receives the writable service-account token. Keep
+`OPENAI_CODEX_ACCOUNT_ID` in the normal read-only vault because iron-proxy, not
+the broker, injects that header.
 
 To bootstrap, run `codex login` locally, then copy the refresh token and
 account id from `~/.codex/auth.json` into the matching secret items. Use
 the constant above for `OPENAI_CODEX_CLIENT_ID`.
 
 If you use the standard Centaur 1Password item layout, the optional helper can
-create or update those three items for you:
+create or update those three items for simple single-vault deployments:
 
 ```bash
 codex login

@@ -107,6 +107,30 @@ def test_render_broker_yaml_emits_credential(
     assert "scopes" not in cred
 
 
+def test_render_broker_yaml_can_use_dedicated_token_broker_vault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FIREWALL_MANAGER_SECRET_SOURCE", "onepassword")
+    monkeypatch.setenv("OP_VAULT", "agents-readonly")
+    monkeypatch.setenv("TOKEN_BROKER_OP_VAULT", "centaur-broker-tokens")
+    secrets = [
+        BrokeredTokenSecret(
+            name="openai-codex",
+            hosts=("auth.openai.com",),
+            fields=_FIELDS,
+            token_endpoint="https://auth.openai.com/oauth/token",
+        ),
+    ]
+    cfg = yaml.safe_load(render_broker_yaml(secrets))
+    cred = cfg["credentials"][0]
+    assert cred["client_id"]["secret_ref"] == (
+        "op://centaur-broker-tokens/CODEX_CLIENT_ID/credential"
+    )
+    assert cred["store"]["secret_ref"] == (
+        "op://centaur-broker-tokens/CODEX_BLOB/credential"
+    )
+
+
 def test_render_broker_yaml_includes_client_secret_and_scopes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

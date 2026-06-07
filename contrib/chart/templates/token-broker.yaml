@@ -99,7 +99,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "centaur.secretEnvName" . }}
-                  key: {{ printf "%sOP_SERVICE_ACCOUNT_TOKEN" .Values.secretManager.envPrefix }}
+                  key: {{ printf "%s%s" .Values.secretManager.envPrefix .Values.tokenBroker.onepasswordServiceAccountTokenKey }}
 {{- end }}
           ports:
             - containerPort: {{ .Values.tokenBroker.service.httpPort }}

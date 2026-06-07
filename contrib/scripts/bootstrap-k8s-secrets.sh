@@ -114,6 +114,9 @@ if secret_exists centaur-infra-env; then
   if [[ -n "${OP_CONNECT_TOKEN:-}" ]]; then
     patch_data+=("\"OP_CONNECT_TOKEN\":\"$(printf '%s' "$OP_CONNECT_TOKEN" | base64 | tr -d '\n')\"")
   fi
+  if [[ -n "${TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+    patch_data+=("\"TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN\":\"$(printf '%s' "$TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN" | base64 | tr -d '\n')\"")
+  fi
   # Top-up IRON_BROKER_TOKEN for clusters bootstrapped before iron-token-broker
   # support landed. Only generated when absent so we don't rotate it out from
   # under cached iron-proxy access tokens on every script run.
@@ -205,6 +208,9 @@ else
   )
   if [[ -n "${OP_CONNECT_TOKEN:-}" ]]; then
     secret_args+=(--from-literal=OP_CONNECT_TOKEN="$OP_CONNECT_TOKEN")
+  fi
+  if [[ -n "${TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+    secret_args+=(--from-literal=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN="$TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN")
   fi
   if [[ -n "${LOCAL_DEV_API_KEY:-}" ]]; then
     secret_args+=(--from-literal=LOCAL_DEV_API_KEY="$LOCAL_DEV_API_KEY")

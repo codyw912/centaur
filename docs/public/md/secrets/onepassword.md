@@ -129,6 +129,9 @@ This writes `OPENAI_CODEX_CLIENT_ID`, `OPENAI_CODEX_BLOB`, and
 `OPENAI_CODEX_ACCOUNT_ID` items with a concealed `credential` field. It is not
 required; corporate deployments can create equivalent items through Terraform,
 External Secrets, 1Password Connect Operator, or another managed process.
+Whichever identity serves iron-token-broker must be able to read all three
+items and update `OPENAI_CODEX_BLOB`, because refreshed token state is persisted
+back into that item.
 
 ## Verify
 

@@ -134,7 +134,8 @@ Secret, etc.) when running in `access_token` mode:
   value as-is.
 - `OPENAI_CODEX_BLOB`: a JSON document `{"refresh_token": "..."}`. The
   broker rotates this in place on every refresh, so the backing item must
-  be writable.
+  be writable by the 1Password service account, Connect token, or other
+  secret-manager identity that serves iron-token-broker.
 - `OPENAI_CODEX_ACCOUNT_ID`: the ChatGPT account UUID the credential is
   bound to. It is static, but iron-proxy injects it as the
   `chatgpt-account-id` header so the backend can route to the right

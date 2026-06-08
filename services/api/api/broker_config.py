@@ -65,7 +65,11 @@ def _secret_source_kind() -> str:
 
 
 def _op_vault() -> str:
-    return os.environ.get("OP_VAULT", "ai-agents").strip()
+    return (
+        os.environ.get("TOKEN_BROKER_OP_VAULT")
+        or os.environ.get("OP_VAULT")
+        or "ai-agents"
+    ).strip()
 
 
 def _build_read_source(field: OAuthFieldSource) -> dict[str, Any]:

@@ -260,6 +260,33 @@ def _secret_env_key(name: str) -> str:
     return f"{os.getenv('KUBERNETES_SECRET_ENV_PREFIX', '')}{name}"
 
 
+_SANDBOX_RESERVED_DIRECT_SECRET_ENV = frozenset({"CODEX_ACCESS_TOKEN"})
+
+
+def _strip_reserved_direct_secret_env(env: list[str]) -> list[str]:
+    """Remove sensitive keys that must be injected only as secret refs."""
+    reserved_prefixes = tuple(f"{name}=" for name in _SANDBOX_RESERVED_DIRECT_SECRET_ENV)
+    return [item for item in env if not item.startswith(reserved_prefixes)]
+
+
+def _uses_codex_access_token_mode(engine: str, auth_modes: Mapping[str, str]) -> bool:
+    mode = (auth_modes.get("CODEX_AUTH_MODE") or "api_key").strip() or "api_key"
+    return engine == "codex" and mode == "access_token"
+
+
+def _codex_access_token_env_ref() -> dict[str, Any]:
+    return {
+        "name": "CODEX_ACCESS_TOKEN",
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": _secret_env_name(),
+                "key": _secret_env_key("CODEX_ACCESS_TOKEN"),
+                "optional": True,
+            }
+        },
+    }
+
+
 def _proxy_iron_env(
     secret_name: str,
     pg_secrets: list[tuple[PgDsnSecret, str]],
@@ -597,6 +624,7 @@ def _apply_tool_server_extra_env(env: list[dict[str, Any]], computed_no_proxy: s
         "CENTAUR_API_KEY",
         "TOOL_DIRS",
         "PLUGIN_WATCHER_ENABLED",
+        *_SANDBOX_RESERVED_DIRECT_SECRET_ENV,
     }
     no_proxy_keys = {"NO_PROXY", "no_proxy"}
     for name, value in sandbox_extra_env_map().items():
@@ -920,7 +948,7 @@ class KubernetesExecutorBackend(SandboxBackend):
     def _collect_secrets(self) -> list[SecretDef]:
         from api.app import get_tool_manager
 
-        return get_tool_manager().collect_secrets()
+        return get_tool_manager().collect_secrets(sandbox_extra_env_map())
 
     def _secrets_for_sandbox(
         self, engine: str, auth_modes: Mapping[str, str]
@@ -1464,7 +1492,8 @@ class KubernetesExecutorBackend(SandboxBackend):
         secret_name = _prompt_secret_name(pod_name)
         firewall_host = _proxy_service_name(pod_name)
 
-        secrets = self._secrets_for_sandbox(engine, sandbox_extra_env_map())
+        auth_modes = sandbox_extra_env_map()
+        secrets = self._secrets_for_sandbox(engine, auth_modes)
         pg_listen_ports = assign_pg_listen_ports(secrets)
         pg_secrets = self._resolved_pg_secrets(secrets)
         sandbox_pg_dsns = {
@@ -1492,6 +1521,7 @@ class KubernetesExecutorBackend(SandboxBackend):
             resume_thread_id=resume_thread_id,
             pg_dsns=sandbox_pg_dsns,
         )
+        env = _strip_reserved_direct_secret_env(env)
         overlay_image = _overlay_image()
         if overlay_image:
             env.append(f"CENTAUR_OVERLAY_DIR={_SANDBOX_OVERLAY_DIR}")
@@ -1606,6 +1636,16 @@ class KubernetesExecutorBackend(SandboxBackend):
 
         cmd = build_harness_cmd(engine, model)
 
+        agent_env = [
+            {
+                "name": item.split("=", 1)[0],
+                "value": item.split("=", 1)[1],
+            }
+            for item in env
+        ]
+        if _uses_codex_access_token_mode(engine, auth_modes):
+            agent_env.append(_codex_access_token_env_ref())
+
         containers: list[dict[str, Any]] = [
             {
                 "name": _CONTAINER_NAME,
@@ -1623,13 +1663,7 @@ class KubernetesExecutorBackend(SandboxBackend):
                 },
                 "tty": False,
                 "workingDir": "/home/agent",
-                "env": [
-                    {
-                        "name": item.split("=", 1)[0],
-                        "value": item.split("=", 1)[1],
-                    }
-                    for item in env
-                ],
+                "env": agent_env,
                 "resources": _pod_resources(),
                 "volumeMounts": volume_mounts,
             }

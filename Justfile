@@ -111,6 +111,12 @@ deploy:
         --set sandbox.extraEnv.CODEX_AUTH_MODE=${CODEX_AUTH_MODE}
       )
     fi
+    if [[ -n "${TOKEN_BROKER_OP_VAULT:-}" ]]; then
+      extra_args+=(
+        --set-string "tokenBroker.opVault=${TOKEN_BROKER_OP_VAULT}"
+        --set tokenBroker.onepasswordServiceAccountTokenKey=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN
+      )
+    fi
     if [[ -n "${CLAUDE_CODE_AUTH_MODE:-}" ]]; then
       extra_args+=(
         --set sandbox.extraEnv.CLAUDE_CODE_AUTH_MODE=${CLAUDE_CODE_AUTH_MODE}

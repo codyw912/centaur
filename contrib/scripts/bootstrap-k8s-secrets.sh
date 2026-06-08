@@ -9,8 +9,10 @@ usage() {
 Usage: scripts/bootstrap-k8s-secrets.sh [--namespace NAMESPACE] [--force]
 
 Creates the required local-dev Kubernetes infra Secrets consumed by the Helm chart.
-Requires OP_SERVICE_ACCOUNT_TOKEN, OP_VAULT, SLACK_BOT_TOKEN,
-SLACK_SIGNING_SECRET, and SLACKBOT_API_KEY in the shell environment.
+When creating centaur-infra-env from scratch, requires OP_SERVICE_ACCOUNT_TOKEN,
+OP_VAULT, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET, and SLACKBOT_API_KEY in the
+shell environment. When centaur-infra-env already exists, this script only tops
+up optional keys that are present in the shell environment.
 
 Optional 1Password Connect bootstrap (when ironProxy.manager.secretSource is
 set to onepassword-connect in the Helm values):
@@ -88,11 +90,6 @@ rand_hex() {
 
 require_cmd kubectl
 require_cmd openssl
-require_env OP_SERVICE_ACCOUNT_TOKEN
-require_env OP_VAULT
-require_env SLACK_BOT_TOKEN
-require_env SLACK_SIGNING_SECRET
-require_env SLACKBOT_API_KEY
 
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
@@ -113,6 +110,9 @@ if secret_exists centaur-infra-env; then
   patch_data=()
   if [[ -n "${OP_CONNECT_TOKEN:-}" ]]; then
     patch_data+=("\"OP_CONNECT_TOKEN\":\"$(printf '%s' "$OP_CONNECT_TOKEN" | base64 | tr -d '\n')\"")
+  fi
+  if [[ -n "${TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+    patch_data+=("\"TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN\":\"$(printf '%s' "$TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN" | base64 | tr -d '\n')\"")
   fi
   # Top-up IRON_BROKER_TOKEN for clusters bootstrapped before iron-token-broker
   # support landed. Only generated when absent so we don't rotate it out from
@@ -174,6 +174,12 @@ if secret_exists centaur-infra-env; then
   fi
   echo "Secret centaur-infra-env already exists in namespace $NAMESPACE; leaving unchanged"
 else
+  require_env OP_SERVICE_ACCOUNT_TOKEN
+  require_env OP_VAULT
+  require_env SLACK_BOT_TOKEN
+  require_env SLACK_SIGNING_SECRET
+  require_env SLACKBOT_API_KEY
+
   POSTGRES_PASSWORD="$(rand_hex)"
   DATABASE_URL="postgresql://tempo:${POSTGRES_PASSWORD}@centaur-centaur-postgres:5432/ai_v2"
   # iron-control runs against a dedicated logical DB on the same Postgres. The
@@ -205,6 +211,9 @@ else
   )
   if [[ -n "${OP_CONNECT_TOKEN:-}" ]]; then
     secret_args+=(--from-literal=OP_CONNECT_TOKEN="$OP_CONNECT_TOKEN")
+  fi
+  if [[ -n "${TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+    secret_args+=(--from-literal=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN="$TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN")
   fi
   if [[ -n "${LOCAL_DEV_API_KEY:-}" ]]; then
     secret_args+=(--from-literal=LOCAL_DEV_API_KEY="$LOCAL_DEV_API_KEY")

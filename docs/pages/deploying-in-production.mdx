@@ -119,12 +119,13 @@ Codex supports two authentication modes, selected per deployment with the
 | `access_token` | `chatgpt.com` | `OPENAI_CODEX_CLIENT_ID`, `OPENAI_CODEX_BLOB`, `OPENAI_CODEX_ACCOUNT_ID` |
 
 `access_token` mode routes Codex through a ChatGPT account rather than a raw
-API key. [iron-token-broker](https://docs.iron.sh) holds the refresh token
-and mints short-lived access tokens, which iron-proxy injects on outbound
-requests so the sandbox never sees them.
+API key. This follows Centaur's normal harness-secret model:
+[iron-token-broker](https://docs.iron.sh) resolves the refresh token from your
+configured secret backend, mints short-lived access tokens, and iron-proxy
+injects them only for matching `chatgpt.com` requests.
 
-Store these three items in your secrets backend (1Password vault, Kubernetes
-Secret, etc.) when running in `access_token` mode:
+Store these items in your secrets backend (1Password vault, Kubernetes Secret,
+etc.) when running in `access_token` mode:
 
 - `OPENAI_CODEX_CLIENT_ID`: the Codex CLI's OAuth client id. This is a
   fixed, publicly known constant: `app_EMoamEEZ73f0CkXaXp7hrann`. It is
@@ -133,15 +134,66 @@ Secret, etc.) when running in `access_token` mode:
   value as-is.
 - `OPENAI_CODEX_BLOB`: a JSON document `{"refresh_token": "..."}`. The
   broker rotates this in place on every refresh, so the backing item must
-  be writable.
+  be writable by the 1Password service account, Connect token, or other
+  secret-manager identity that serves iron-token-broker.
 - `OPENAI_CODEX_ACCOUNT_ID`: the ChatGPT account UUID the credential is
   bound to. It is static, but iron-proxy injects it as the
   `chatgpt-account-id` header so the backend can route to the right
-  workspace. Store it alongside the other two, not in code.
+  workspace. Store it in the normal read-only secret source, not in code.
+
+For least privilege with the 1Password service-account source, keep the normal
+`OP_SERVICE_ACCOUNT_TOKEN` read-only and put the writable broker items in a
+dedicated vault:
+
+```bash
+export OP_VAULT=centaur-runtime-secrets
+export OP_SERVICE_ACCOUNT_TOKEN=... # read-only for normal API/tool secrets
+export TOKEN_BROKER_OP_VAULT=centaur-broker-tokens
+export TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN=... # read/write only for broker vault
+just bootstrap-secrets
+CODEX_AUTH_MODE=access_token just deploy
+```
+
+With this split, place `OPENAI_CODEX_CLIENT_ID` and `OPENAI_CODEX_BLOB` in
+`TOKEN_BROKER_OP_VAULT`. The broker renders those refs against that vault, and
+only the token-broker pod receives the writable service-account token. Keep
+`OPENAI_CODEX_ACCOUNT_ID` in the normal read-only vault because iron-proxy, not
+the broker, injects that header.
 
 To bootstrap, run `codex login` locally, then copy the refresh token and
 account id from `~/.codex/auth.json` into the matching secret items. Use
 the constant above for `OPENAI_CODEX_CLIENT_ID`.
+
+If you use the standard Centaur 1Password item layout, the optional helper can
+create or update the Codex items. Point it at both vaults:
+
+```bash
+codex login
+unset OP_SERVICE_ACCOUNT_TOKEN # if your shell has the read-only runtime token
+OP_VAULT=centaur-runtime-secrets TOKEN_BROKER_OP_VAULT=centaur-broker-tokens \
+  contrib/scripts/bootstrap-codex-1password.sh
+```
+
+This writes `OPENAI_CODEX_CLIENT_ID` and `OPENAI_CODEX_BLOB` to the broker
+vault, and `OPENAI_CODEX_ACCOUNT_ID` to `OP_VAULT`.
+Run the helper with an `op` identity that can write both target vaults; the
+runtime service-account tokens are for Centaur pods, not for this bootstrap
+step.
+
+For legacy/simple deployments that intentionally keep all three items in one
+vault, pass `--vault <vault>` explicitly.
+
+This helper is only a convenience for simple deployments. If your organization
+manages 1Password items through Terraform, External Secrets, 1Password Connect
+Operator, or another corporate process, create equivalent items with the same
+names and `credential` fields through that process instead.
+
+As a local/bootstrap escape hatch, Centaur also supports `CODEX_ACCESS_TOKEN`
+in the managed Kubernetes Secret. Only Codex access-token sandboxes receive it,
+and only as a `secretKeyRef`; the sandbox consumes it with
+`codex login --with-access-token`, unsets it, and still requires
+`codex login status` before readiness. Prefer the brokered 1Password path for
+shared or long-running deployments.
 
 ### Claude Auth Modes
 

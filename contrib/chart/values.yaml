@@ -61,6 +61,12 @@ tokenBroker:
   # re-fetching. Must be strictly less than the IdP's token lifetime or the
   # broker resolver rejects the response.
   ttl: 1m
+  # Optional 1Password isolation for brokered OAuth credentials. When unset,
+  # the broker keeps using OP_VAULT and OP_SERVICE_ACCOUNT_TOKEN like older
+  # deployments. Set these when refresh-token blobs live in a dedicated
+  # writable vault served by a broker-only service account.
+  opVault: ""
+  onepasswordServiceAccountTokenKey: OP_SERVICE_ACCOUNT_TOKEN
   resources: {}
 
 # iron-control — Rails control plane for authenticated API access + encrypted

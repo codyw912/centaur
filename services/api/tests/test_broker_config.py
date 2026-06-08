@@ -107,6 +107,30 @@ def test_render_broker_yaml_emits_credential(
     assert "scopes" not in cred
 
 
+def test_render_broker_yaml_can_use_dedicated_token_broker_vault(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FIREWALL_MANAGER_SECRET_SOURCE", "onepassword")
+    monkeypatch.setenv("OP_VAULT", "agents-readonly")
+    monkeypatch.setenv("TOKEN_BROKER_OP_VAULT", "centaur-broker-tokens")
+    secrets = [
+        BrokeredTokenSecret(
+            name="openai-codex",
+            hosts=("auth.openai.com",),
+            fields=_FIELDS,
+            token_endpoint="https://auth.openai.com/oauth/token",
+        ),
+    ]
+    cfg = yaml.safe_load(render_broker_yaml(secrets))
+    cred = cfg["credentials"][0]
+    assert cred["client_id"]["secret_ref"] == (
+        "op://centaur-broker-tokens/CODEX_CLIENT_ID/credential"
+    )
+    assert cred["store"]["secret_ref"] == (
+        "op://centaur-broker-tokens/CODEX_BLOB/credential"
+    )
+
+
 def test_render_broker_yaml_includes_client_secret_and_scopes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -261,26 +285,23 @@ def test_render_broker_yaml_skips_non_brokered_secrets(
 def test_render_broker_yaml_includes_harness_brokered_secrets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ToolManager.collect_secrets feeds the broker reconcile path. Both
-    ``anthropic-claude`` and ``openai-codex`` must appear in the rendered
-    iron-token-broker config so the broker manages them whether or not any
-    sandbox is currently using access_token mode."""
+    """ToolManager.collect_secrets feeds the broker reconcile path. Only
+    harnesses with access_token mode enabled should appear in the rendered
+    iron-token-broker config."""
     from api.tool_manager import ToolManager
 
     monkeypatch.setenv("FIREWALL_MANAGER_SECRET_SOURCE", "onepassword")
     tm = ToolManager.__new__(ToolManager)
     tm.tools = {}
-    cfg = yaml.safe_load(render_broker_yaml(tm.collect_secrets()))
+    cfg = yaml.safe_load(
+        render_broker_yaml(tm.collect_secrets({"CODEX_AUTH_MODE": "access_token"}))
+    )
 
     credential_ids = {c["id"] for c in cfg["credentials"]}
-    assert "anthropic-claude" in credential_ids
+    assert "anthropic-claude" not in credential_ids
     assert "openai-codex" in credential_ids
 
     by_id = {c["id"]: c for c in cfg["credentials"]}
-    assert (
-        by_id["anthropic-claude"]["token_endpoint"]
-        == "https://console.anthropic.com/v1/oauth/token"
-    )
     assert (
         by_id["openai-codex"]["token_endpoint"]
         == "https://auth.openai.com/oauth/token"

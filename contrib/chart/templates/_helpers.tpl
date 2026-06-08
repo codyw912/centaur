@@ -141,6 +141,38 @@ registered refresh_token OAuthTokenSecrets by the API server at startup.
 {{- printf "http://%s:%v" (include "centaur.tokenBrokerHost" .) .Values.tokenBroker.service.httpPort -}}
 {{- end -}}
 
+{{- define "centaur.tokenBrokerSecretSource" -}}
+{{- default .Values.ironProxy.secretSource .Values.tokenBroker.secretSource -}}
+{{- end -}}
+
+{{- define "centaur.tokenBrokerOnepasswordConnectHost" -}}
+{{- default (include "centaur.onepasswordConnectUrl" .) .Values.tokenBroker.onepasswordConnect.host -}}
+{{- end -}}
+
+{{- define "centaur.tokenBrokerOnepasswordConnectTokenKey" -}}
+{{- default "OP_CONNECT_TOKEN" .Values.tokenBroker.onepasswordConnect.tokenKey -}}
+{{- end -}}
+
+{{- define "centaur.tokenBrokerOnepasswordConnectTokenSecretName" -}}
+{{- if .Values.tokenBroker.onepasswordConnect.tokenSecretName -}}
+{{- .Values.tokenBroker.onepasswordConnect.tokenSecretName -}}
+{{- else if .Values.tokenBroker.onepasswordConnect.tokenKey -}}
+{{- printf "%s-token-broker-env" .Release.Name -}}
+{{- else -}}
+{{- include "centaur.secretEnvName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "centaur.tokenBrokerOnepasswordConnectTokenSecretKey" -}}
+{{- if .Values.tokenBroker.onepasswordConnect.tokenKey -}}
+{{- .Values.tokenBroker.onepasswordConnect.tokenKey -}}
+{{- else if .Values.tokenBroker.onepasswordConnect.tokenSecretName -}}
+{{- "OP_CONNECT_TOKEN" -}}
+{{- else -}}
+{{- printf "%sOP_CONNECT_TOKEN" .Values.secretManager.envPrefix -}}
+{{- end -}}
+{{- end -}}
+
 {{- /*
 iron-control — Rails control plane for authenticated API access and encrypted
 secret storage. Flag-gated (ironControl.enabled), in-cluster ClusterIP Service.

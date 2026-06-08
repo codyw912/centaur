@@ -331,6 +331,8 @@ spec:
 {{- if .Values.tokenBroker.enabled }}
             - name: FIREWALL_MANAGER_TOKEN_BROKER_TTL
               value: {{ .Values.tokenBroker.ttl | quote }}
+            - name: TOKEN_BROKER_SECRET_SOURCE
+              value: {{ include "centaur.tokenBrokerSecretSource" . | quote }}
             - name: KUBERNETES_TOKEN_BROKER_NAME
               value: {{ include "centaur.tokenBrokerName" . | quote }}
             - name: KUBERNETES_TOKEN_BROKER_URL

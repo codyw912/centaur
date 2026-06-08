@@ -3,6 +3,8 @@ set -euo pipefail
 
 NAMESPACE="centaur"
 FORCE=0
+CENTAUR_RELEASE="${CENTAUR_RELEASE:-centaur}"
+TOKEN_BROKER_CONNECT_SECRET_NAME="${TOKEN_BROKER_CONNECT_SECRET_NAME:-${CENTAUR_RELEASE}-token-broker-env}"
 
 usage() {
   cat <<'EOF'
@@ -19,6 +21,13 @@ set to onepassword-connect in the Helm values):
   OP_CONNECT_CREDENTIALS_FILE  path to 1password-credentials.json; if set,
                                creates Secret centaur-onepassword-connect-credentials
   OP_CONNECT_TOKEN             Connect API token; added to centaur-infra-env
+  TOKEN_BROKER_OP_CONNECT_TOKEN
+                               broker-specific Connect token; added only to
+                               TOKEN_BROKER_CONNECT_SECRET_NAME
+                               (default ${CENTAUR_RELEASE:-centaur}-token-broker-env)
+  TOKEN_BROKER_CONNECT_SECRET_NAME
+                               optional Secret name override for the broker
+                               Connect token
 
 Optional local-dev admin key:
   LOCAL_DEV_API_KEY            seeded as the admin bearer for the API service
@@ -97,6 +106,13 @@ delete_if_forced centaur-infra-env
 delete_if_forced centaur-firewall-ca
 delete_if_forced centaur-firewall-ca-key
 delete_if_forced centaur-onepassword-connect-credentials
+delete_if_forced "$TOKEN_BROKER_CONNECT_SECRET_NAME"
+
+if [[ -n "${TOKEN_BROKER_OP_CONNECT_TOKEN:-}" ]]; then
+  kubectl -n "$NAMESPACE" create secret generic "$TOKEN_BROKER_CONNECT_SECRET_NAME" \
+    --from-literal=TOKEN_BROKER_OP_CONNECT_TOKEN="$TOKEN_BROKER_OP_CONNECT_TOKEN" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+fi
 
 secret_key_present() {
   local key="$1"

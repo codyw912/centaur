@@ -117,6 +117,12 @@ deploy:
         --set tokenBroker.onepasswordServiceAccountTokenKey=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN
       )
     fi
+    if [[ -n "${TOKEN_BROKER_OP_CONNECT_TOKEN:-}" ]]; then
+      extra_args+=(
+        --set tokenBroker.onepasswordConnect.tokenKey=TOKEN_BROKER_OP_CONNECT_TOKEN
+        --set-string "tokenBroker.onepasswordConnect.tokenSecretName=${TOKEN_BROKER_CONNECT_SECRET_NAME:-{{release}}-token-broker-env}"
+      )
+    fi
     if [[ -n "${CLAUDE_CODE_AUTH_MODE:-}" ]]; then
       extra_args+=(
         --set sandbox.extraEnv.CLAUDE_CODE_AUTH_MODE=${CLAUDE_CODE_AUTH_MODE}

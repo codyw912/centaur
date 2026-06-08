@@ -1117,6 +1117,22 @@ def _terminal_error_from_harness_event(event: dict) -> str | None:
             return result.strip()
         return "Harness reported an error"
 
+    if event_type == "turn.failed":
+        err = event.get("error")
+        if isinstance(err, str) and err.strip():
+            return err.strip()
+        if isinstance(err, dict):
+            message = err.get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()
+        message = event.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+        reason = event.get("reason")
+        if isinstance(reason, str) and reason.strip():
+            return reason.strip()
+        return "Harness turn failed"
+
     return None
 
 
@@ -1133,6 +1149,7 @@ async def _stream_stdout(
     Callers that only need one turn can ``return`` from their own loop.
     """
     result_text = ""
+    last_error_text: str | None = None
     agent_thread_id: str | None = None
     first_output = False
     eof_reattach_attempts = 0
@@ -1187,13 +1204,14 @@ async def _stream_stdout(
             if r is not None:
                 result_text = r
             if evt.get("type") == "error":
+                last_error_text = _terminal_error_from_harness_event(evt)
                 result_text = ""
 
             for canonical in normalize_harness_event(session.engine, evt):
                 yield {"data": json.dumps(canonical, separators=(",", ":"))}
 
             if is_turn_done(session.engine, evt):
-                terminal_error = _terminal_error_from_harness_event(evt)
+                terminal_error = _terminal_error_from_harness_event(evt) or last_error_text
                 terminal_result = result_text or terminal_error or ""
                 rt.last_result = result_text
                 # Persist agent_thread_id for conversation resume
@@ -1245,6 +1263,7 @@ async def _stream_stdout(
                     reason="error" if terminal_error else "completed",
                 )
                 result_text = ""
+                last_error_text = None
                 agent_thread_id = None
                 t0 = time.monotonic()
 

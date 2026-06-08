@@ -49,6 +49,33 @@ class _UnknownEventBackend:
         return "gone"
 
 
+class _CodexErrorThenDoneBackend:
+    async def stream_stdout(self, _session):
+        yield json.dumps(
+            {
+                "type": "error",
+                "error": "Your access token could not be refreshed.",
+            }
+        )
+        yield json.dumps({"type": "turn.done", "result": ""})
+
+    async def status(self, _session):
+        return "gone"
+
+
+class _CodexTurnFailedBackend:
+    async def stream_stdout(self, _session):
+        yield json.dumps(
+            {
+                "type": "turn.failed",
+                "error": {"message": "Codex broker auth failed."},
+            }
+        )
+
+    async def status(self, _session):
+        return "gone"
+
+
 def test_elapsed_since_uses_monotonic_delta_when_available() -> None:
     from api.agent import _elapsed_since
 
@@ -177,6 +204,86 @@ async def test_stream_stdout_warns_for_unknown_event_types() -> None:
         thread_key="test:unknown-event",
         sandbox="sbx-unknown",
     )
+
+
+@pytest.mark.asyncio
+async def test_stream_stdout_marks_codex_error_then_done_as_error() -> None:
+    from api.agent import _stream_stdout
+
+    session = SandboxSession(
+        sandbox_id="sbx-codex-error",
+        thread_key="test:codex-error",
+        harness="codex",
+        engine="codex",
+    )
+    rt = RuntimeState()
+    persist = AsyncMock()
+    complete = AsyncMock()
+
+    with (
+        patch("api.agent._persist_turn_messages", persist),
+        patch("api.agent._db_complete_inflight_turn", complete),
+    ):
+        events = [
+            event
+            async for event in _stream_stdout(
+                session,
+                _CodexErrorThenDoneBackend(),
+                rt,
+                turn_id=1,
+                t0=time.monotonic(),
+            )
+        ]
+
+    decoded = [json.loads(item["data"]) for item in events]
+    turn_done = next(evt for evt in decoded if evt.get("type") == "turn.done")
+    assert turn_done["is_error"] is True
+    assert turn_done["error"] == "Your access token could not be refreshed."
+    assert turn_done["result"] == "Your access token could not be refreshed."
+    persist.assert_awaited_once_with(
+        "test:codex-error",
+        "",
+        "Your access token could not be refreshed.",
+        "codex",
+    )
+    complete.assert_awaited_once_with(
+        "test:codex-error",
+        "Your access token could not be refreshed.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_stdout_marks_codex_turn_failed_as_error() -> None:
+    from api.agent import _stream_stdout
+
+    session = SandboxSession(
+        sandbox_id="sbx-codex-failed",
+        thread_key="test:codex-failed",
+        harness="codex",
+        engine="codex",
+    )
+    rt = RuntimeState()
+
+    with (
+        patch("api.agent._persist_turn_messages", new_callable=AsyncMock),
+        patch("api.agent._db_complete_inflight_turn", new_callable=AsyncMock),
+    ):
+        events = [
+            event
+            async for event in _stream_stdout(
+                session,
+                _CodexTurnFailedBackend(),
+                rt,
+                turn_id=1,
+                t0=time.monotonic(),
+            )
+        ]
+
+    decoded = [json.loads(item["data"]) for item in events]
+    turn_done = next(evt for evt in decoded if evt.get("type") == "turn.done")
+    assert turn_done["is_error"] is True
+    assert turn_done["error"] == "Codex broker auth failed."
+    assert turn_done["result"] == "Codex broker auth failed."
 
 
 @pytest.mark.asyncio

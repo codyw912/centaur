@@ -4,11 +4,12 @@ set -euo pipefail
 AUTH_JSON="${HOME}/.codex/auth.json"
 CLIENT_ID="${OPENAI_CODEX_CLIENT_ID:-app_EMoamEEZ73f0CkXaXp7hrann}"
 DRY_RUN=0
-VAULT="${OP_VAULT:-}"
+ACCOUNT_VAULT="${OP_VAULT:-}"
+BROKER_VAULT="${TOKEN_BROKER_OP_VAULT:-}"
 
 usage() {
   cat <<'EOF'
-Usage: contrib/scripts/bootstrap-codex-1password.sh [--auth-json PATH] [--vault VAULT] [--client-id ID] [--dry-run]
+Usage: contrib/scripts/bootstrap-codex-1password.sh [--auth-json PATH] [--vault VAULT] [--account-vault VAULT] [--broker-vault VAULT] [--client-id ID] [--dry-run]
 
 Creates or updates the Centaur 1Password items used for brokered Codex
 ChatGPT subscription auth:
@@ -17,13 +18,27 @@ ChatGPT subscription auth:
   OPENAI_CODEX_BLOB
   OPENAI_CODEX_ACCOUNT_ID
 
-Each item gets a concealed field named "credential", matching Centaur's
-op://$OP_VAULT/<ITEM>/credential convention. Values are read from a Codex
-CLI auth.json created by `codex login`; secret values are never printed.
+Each item gets a concealed field named "credential". Values are read from a
+Codex CLI auth.json created by `codex login`; secret values are never printed.
+
+By default, OP_VAULT targets the account/read-only vault and
+TOKEN_BROKER_OP_VAULT targets the broker vault:
+
+  OPENAI_CODEX_CLIENT_ID  -> broker vault
+  OPENAI_CODEX_BLOB       -> broker vault
+  OPENAI_CODEX_ACCOUNT_ID -> account/read-only vault
+
+Use --vault only for legacy/simple deployments that intentionally keep all
+three items in one vault.
 
 This helper is optional. If your organization manages 1Password items through
 Terraform, SCIM, External Secrets, or another process, create equivalent items
 with the same names and credential field.
+
+Run this helper with an `op` identity that can create/update items in both
+target vaults. If OP_SERVICE_ACCOUNT_TOKEN is exported for Centaur runtime
+bootstrap and is read-only, unset it before running this helper so `op` can use
+your normal desktop/account sign-in instead.
 EOF
 }
 
@@ -34,7 +49,16 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --vault)
-      VAULT="${2:?--vault requires a vault name or id}"
+      ACCOUNT_VAULT="${2:?--vault requires a vault name or id}"
+      BROKER_VAULT="$ACCOUNT_VAULT"
+      shift 2
+      ;;
+    --account-vault)
+      ACCOUNT_VAULT="${2:?--account-vault requires a vault name or id}"
+      shift 2
+      ;;
+    --broker-vault)
+      BROKER_VAULT="${2:?--broker-vault requires a vault name or id}"
       shift 2
       ;;
     --client-id)
@@ -67,8 +91,12 @@ require_cmd() {
 require_cmd jq
 require_cmd op
 
-if [[ -z "$VAULT" ]]; then
-  echo "FATAL: set OP_VAULT or pass --vault" >&2
+if [[ -z "$ACCOUNT_VAULT" ]]; then
+  echo "FATAL: set OP_VAULT, pass --vault, or pass --account-vault" >&2
+  exit 1
+fi
+if [[ -z "$BROKER_VAULT" ]]; then
+  echo "FATAL: set TOKEN_BROKER_OP_VAULT, pass --broker-vault, or pass --vault for explicit single-vault mode" >&2
   exit 1
 fi
 if [[ ! -r "$AUTH_JSON" ]]; then
@@ -124,11 +152,12 @@ tmp_file() {
 
 write_item() {
   local name="$1"
-  local value="$2"
+  local vault="$2"
+  local value="$3"
   local value_file item_file updated_file
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    printf 'Would create/update 1Password item %s in vault %s\n' "$name" "$VAULT"
+    printf 'Would create/update 1Password item %s in vault %s\n' "$name" "$vault"
     return
   fi
 
@@ -137,7 +166,7 @@ write_item() {
   updated_file="$(tmp_file)"
   printf '%s' "$value" > "$value_file"
 
-  if op item get "$name" --vault "$VAULT" --format json > "$item_file" 2>/dev/null; then
+  if op item get "$name" --vault "$vault" --format json > "$item_file" 2>/dev/null; then
     jq --rawfile credential "$value_file" --arg title "$name" '
       .title = $title
       | .fields = (
@@ -145,8 +174,8 @@ write_item() {
           + [{id: "credential", type: "CONCEALED", label: "credential", value: $credential}]
         )
     ' "$item_file" > "$updated_file"
-    op item edit "$name" --vault "$VAULT" --template "$updated_file" >/dev/null
-    printf 'Updated 1Password item %s in vault %s\n' "$name" "$VAULT"
+    op item edit "$name" --vault "$vault" --template "$updated_file" >/dev/null
+    printf 'Updated 1Password item %s in vault %s\n' "$name" "$vault"
   else
     op item template get "Secure Note" > "$item_file"
     jq --rawfile credential "$value_file" --arg title "$name" '
@@ -156,14 +185,14 @@ write_item() {
           + [{id: "credential", type: "CONCEALED", label: "credential", value: $credential}]
         )
     ' "$item_file" > "$updated_file"
-    op item create --vault "$VAULT" --template "$updated_file" >/dev/null
-    printf 'Created 1Password item %s in vault %s\n' "$name" "$VAULT"
+    op item create --vault "$vault" --template "$updated_file" >/dev/null
+    printf 'Created 1Password item %s in vault %s\n' "$name" "$vault"
   fi
 }
 
-write_item "OPENAI_CODEX_CLIENT_ID" "$CLIENT_ID"
-write_item "OPENAI_CODEX_BLOB" "$blob"
-write_item "OPENAI_CODEX_ACCOUNT_ID" "$account_id"
+write_item "OPENAI_CODEX_CLIENT_ID" "$BROKER_VAULT" "$CLIENT_ID"
+write_item "OPENAI_CODEX_BLOB" "$BROKER_VAULT" "$blob"
+write_item "OPENAI_CODEX_ACCOUNT_ID" "$ACCOUNT_VAULT" "$account_id"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   printf 'Dry run complete; no 1Password items were changed.\n'

@@ -165,12 +165,23 @@ account id from `~/.codex/auth.json` into the matching secret items. Use
 the constant above for `OPENAI_CODEX_CLIENT_ID`.
 
 If you use the standard Centaur 1Password item layout, the optional helper can
-create or update those three items for simple single-vault deployments:
+create or update the Codex items. Point it at both vaults:
 
 ```bash
 codex login
-OP_VAULT=ai-agents contrib/scripts/bootstrap-codex-1password.sh
+unset OP_SERVICE_ACCOUNT_TOKEN # if your shell has the read-only runtime token
+OP_VAULT=Agents TOKEN_BROKER_OP_VAULT="Broker Tokens" \
+  contrib/scripts/bootstrap-codex-1password.sh
 ```
+
+This writes `OPENAI_CODEX_CLIENT_ID` and `OPENAI_CODEX_BLOB` to the broker
+vault, and `OPENAI_CODEX_ACCOUNT_ID` to `OP_VAULT`.
+Run the helper with an `op` identity that can write both target vaults; the
+runtime service-account tokens are for Centaur pods, not for this bootstrap
+step.
+
+For legacy/simple deployments that intentionally keep all three items in one
+vault, pass `--vault <vault>` explicitly.
 
 This helper is only a convenience for simple deployments. If your organization
 manages 1Password items through Terraform, External Secrets, 1Password Connect

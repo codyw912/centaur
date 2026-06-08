@@ -118,17 +118,30 @@ Each item should live in `OP_VAULT` with its value in `credential`.
 Codex ChatGPT subscription auth uses brokered OAuth-style fields instead of a
 single API key. For deployments that use the standard Centaur item layout, the
 optional helper can create or update the expected 1Password items from a local
-`codex login`:
+`codex login`. Run it with both vaults:
 
 ```bash
 codex login
-OP_VAULT=ai-agents contrib/scripts/bootstrap-codex-1password.sh
+unset OP_SERVICE_ACCOUNT_TOKEN # if your shell has the read-only runtime token
+OP_VAULT=Agents TOKEN_BROKER_OP_VAULT="Broker Tokens" \
+  contrib/scripts/bootstrap-codex-1password.sh
 ```
 
 This writes `OPENAI_CODEX_CLIENT_ID`, `OPENAI_CODEX_BLOB`, and
 `OPENAI_CODEX_ACCOUNT_ID` items with a concealed `credential` field. It is not
 required; corporate deployments can create equivalent items through Terraform,
 External Secrets, 1Password Connect Operator, or another managed process.
+
+In split-vault mode, the client id and blob go to `TOKEN_BROKER_OP_VAULT`, and
+the account id goes to `OP_VAULT`.
+
+Run the helper with an `op` identity that can write both target vaults; the
+runtime service-account tokens are for Centaur pods, not for this bootstrap
+step.
+
+For legacy/simple deployments that intentionally keep all three items in one
+vault, pass `--vault <vault>` explicitly.
+
 Whichever identity serves iron-token-broker must be able to read the
 broker-served items and update `OPENAI_CODEX_BLOB`, because refreshed token
 state is persisted back into that item.

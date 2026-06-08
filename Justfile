@@ -114,10 +114,6 @@ deploy:
     if [[ -n "${TOKEN_BROKER_OP_VAULT:-}" ]]; then
       extra_args+=(
         --set-string "tokenBroker.opVault=${TOKEN_BROKER_OP_VAULT}"
-      )
-    fi
-    if [[ -n "${TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
-      extra_args+=(
         --set tokenBroker.onepasswordServiceAccountTokenKey=TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN
       )
     fi

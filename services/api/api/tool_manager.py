@@ -1884,8 +1884,9 @@ class ToolManager:
     # Harness-specific credentials, keyed by ``(engine, auth_mode)``. The
     # per-sandbox iron-proxy gets exactly the tuple that matches the
     # sandbox's harness and auth-mode env var; the shared API-side proxy
-    # and the token broker see the union of every tuple so they can manage
-    # the credential set independently of which mode is currently active.
+    # and the token broker get the tuple for each harness's deployment-level
+    # auth mode so unused OAuth paths do not require secrets or create noisy
+    # broker refresh failures.
     #
     # Bootstrap (per harness OAuth flow): run ``claude login`` / ``codex
     # login`` locally and copy the refresh token into the matching ``*_BLOB``
@@ -1976,20 +1977,22 @@ class ToolManager:
         out.extend(self._harness_secrets_for(engine, auth_modes))
         return out
 
-    def collect_secrets(self) -> list[SecretDef]:
+    def collect_secrets(
+        self, auth_modes: Mapping[str, str] | None = None
+    ) -> list[SecretDef]:
         """Return all secrets the deployment manages.
 
-        Base infra + every tool's secrets + the union of every harness
-        credential variant. Used by the shared API-side iron-proxy and by
-        iron-token-broker so the broker manages every brokered credential
-        regardless of which sandboxes are currently running. Per-sandbox
+        Base infra + every tool's secrets + the harness credential variant
+        selected by each harness's deployment-level auth-mode env var. Used by
+        the shared API-side iron-proxy and by iron-token-broker. Per-sandbox
         proxies should call :meth:`secrets_for_sandbox` instead.
         """
         out: list[SecretDef] = list(self._INFRA_SECRETS)
         for lt in self.tools.values():
             out.extend(lt.all_secrets)
-        for harness_set in self._HARNESS_SECRETS.values():
-            out.extend(harness_set)
+        auth_modes = auth_modes or {}
+        for engine in sorted(self._HARNESS_AUTH_MODE_ENV):
+            out.extend(self._harness_secrets_for(engine, auth_modes))
         return out
 
     def reload(self) -> dict[str, Any]:

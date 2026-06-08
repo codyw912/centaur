@@ -948,7 +948,7 @@ class KubernetesExecutorBackend(SandboxBackend):
     def _collect_secrets(self) -> list[SecretDef]:
         from api.app import get_tool_manager
 
-        return get_tool_manager().collect_secrets()
+        return get_tool_manager().collect_secrets(sandbox_extra_env_map())
 
     def _secrets_for_sandbox(
         self, engine: str, auth_modes: Mapping[str, str]

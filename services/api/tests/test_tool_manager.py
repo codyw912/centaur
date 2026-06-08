@@ -738,15 +738,41 @@ class TestHarnessSecretSelection:
         assert slack_etl.hosts == ("*.slack.com",)
         assert slack_etl.match_headers == ("Authorization",)
 
-    def test_collect_secrets_returns_union_of_all_harness_variants(self) -> None:
-        """The shared API-side proxy and token broker need every harness
-        credential so they can manage the full set regardless of which mode
-        any individual sandbox is using right now."""
+    def test_collect_secrets_defaults_to_api_key_harness_variants(self) -> None:
+        """Shared proxy/broker config follows deployment auth modes, defaulting
+        each harness to API-key mode so unused OAuth paths stay optional."""
         tm = ToolManager.__new__(ToolManager)
         tm.tools = {}
         names = self._names(tm.collect_secrets())
         assert "ANTHROPIC_API_KEY" in names
         assert "OPENAI_API_KEY" in names
+        assert "anthropic-claude" not in names
+        assert "openai-codex" not in names
+        assert "OPENAI_CODEX_ACCOUNT_ID" not in names
+
+    def test_collect_secrets_uses_enabled_harness_auth_modes(self) -> None:
+        tm = ToolManager.__new__(ToolManager)
+        tm.tools = {}
+        names = self._names(tm.collect_secrets({"CODEX_AUTH_MODE": "access_token"}))
+        assert "ANTHROPIC_API_KEY" in names
+        assert "OPENAI_API_KEY" not in names
+        assert "anthropic-claude" not in names
+        assert "openai-codex" in names
+        assert "OPENAI_CODEX_ACCOUNT_ID" in names
+
+    def test_collect_secrets_can_enable_multiple_oauth_harnesses(self) -> None:
+        tm = ToolManager.__new__(ToolManager)
+        tm.tools = {}
+        names = self._names(
+            tm.collect_secrets(
+                {
+                    "CLAUDE_CODE_AUTH_MODE": "access_token",
+                    "CODEX_AUTH_MODE": "access_token",
+                }
+            )
+        )
+        assert "ANTHROPIC_API_KEY" not in names
+        assert "OPENAI_API_KEY" not in names
         assert "anthropic-claude" in names
         assert "openai-codex" in names
         assert "OPENAI_CODEX_ACCOUNT_ID" in names

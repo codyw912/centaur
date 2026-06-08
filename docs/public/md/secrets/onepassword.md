@@ -162,6 +162,46 @@ Only the token-broker pod receives `TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN`;
 iron-proxy and ordinary API/tool secrets continue using the read-only
 `OP_SERVICE_ACCOUNT_TOKEN`.
 
+For least privilege with 1Password Connect, use a broker-specific Connect token
+instead of granting the shared runtime Connect token write access to brokered
+OAuth items:
+
+```bash
+export OP_CONNECT_CREDENTIALS_FILE=/path/to/1password-credentials.json
+export OP_CONNECT_TOKEN=... # read-only/runtime Connect token
+export TOKEN_BROKER_OP_CONNECT_TOKEN=... # broker Connect token
+export TOKEN_BROKER_OP_VAULT=centaur-broker-tokens
+
+just bootstrap-secrets
+CODEX_AUTH_MODE=access_token just deploy
+```
+
+`just bootstrap-secrets` writes `TOKEN_BROKER_OP_CONNECT_TOKEN` to a broker-only
+Secret named `${CENTAUR_RELEASE:-centaur}-token-broker-env` by default, not to
+the shared `centaur-infra-env` Secret used by API and Slackbot `envFrom`.
+`just deploy` maps that Secret into only the token-broker deployment with:
+
+```yaml
+tokenBroker:
+  onepasswordConnect:
+    tokenSecretName: centaur-token-broker-env
+    tokenKey: TOKEN_BROKER_OP_CONNECT_TOKEN
+```
+
+If the broker token talks to a separate Connect service, also set the broker
+Connect host and NetworkPolicy selector:
+
+```yaml
+tokenBroker:
+  onepasswordConnect:
+    host: http://broker-connect:8080
+    egress:
+      podSelector:
+        app: broker-connect
+      # namespaceSelector and port are available when the service is not the
+      # chart-managed Connect pod in the same namespace.
+```
+
 ## Verify
 
 Check that the API and [iron-proxy](https://docs.iron.sh) received the expected source mode:

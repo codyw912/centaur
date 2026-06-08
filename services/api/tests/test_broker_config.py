@@ -155,6 +155,26 @@ def test_render_broker_yaml_includes_client_secret_and_scopes(
     assert cred["scopes"] == ["openid", "offline_access"]
 
 
+def test_render_broker_yaml_uses_token_broker_secret_source_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FIREWALL_MANAGER_SECRET_SOURCE", "onepassword")
+    monkeypatch.setenv("TOKEN_BROKER_SECRET_SOURCE", "onepassword-connect")
+    monkeypatch.setenv("OP_VAULT", "ai-agents")
+    secrets = [
+        BrokeredTokenSecret(
+            name="openai-codex",
+            hosts=("auth.openai.com",),
+            fields=_FIELDS,
+            token_endpoint="https://auth.openai.com/oauth/token",
+        ),
+    ]
+    cfg = yaml.safe_load(render_broker_yaml(secrets))
+    cred = cfg["credentials"][0]
+    assert cred["client_id"]["type"] == "1password_connect"
+    assert cred["store"]["type"] == "1password_connect"
+
+
 def test_render_broker_yaml_rejects_env_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

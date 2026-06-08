@@ -1,4 +1,5 @@
 {{- if .Values.tokenBroker.enabled }}
+{{- $tokenBrokerSecretSource := include "centaur.tokenBrokerSecretSource" . -}}
 # iron-token-broker — owns the OAuth refresh-token state machine for any
 # OAuthTokenSecret with grant=refresh_token. Single-writer process; the API
 # reconciles the ConfigMap content (one credentials[] entry per registered
@@ -86,15 +87,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "centaur.secretEnvName" . }}
                   key: {{ printf "%sIRON_BROKER_TOKEN" .Values.secretManager.envPrefix }}
-{{- if eq .Values.ironProxy.secretSource "onepassword-connect" }}
+{{- if eq $tokenBrokerSecretSource "onepassword-connect" }}
             - name: OP_CONNECT_HOST
-              value: {{ include "centaur.onepasswordConnectUrl" . | quote }}
+              value: {{ include "centaur.tokenBrokerOnepasswordConnectHost" . | quote }}
             - name: OP_CONNECT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "centaur.secretEnvName" . }}
-                  key: {{ printf "%sOP_CONNECT_TOKEN" .Values.secretManager.envPrefix }}
-{{- else if eq .Values.ironProxy.secretSource "onepassword" }}
+                  name: {{ include "centaur.tokenBrokerOnepasswordConnectTokenSecretName" . }}
+                  key: {{ include "centaur.tokenBrokerOnepasswordConnectTokenSecretKey" . }}
+{{- else if eq $tokenBrokerSecretSource "onepassword" }}
             - name: OP_SERVICE_ACCOUNT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -157,14 +158,23 @@ spec:
     - ports:
         - protocol: TCP
           port: 443
-{{- if eq .Values.ironProxy.secretSource "onepassword-connect" }}
+{{- if eq $tokenBrokerSecretSource "onepassword-connect" }}
     - to:
         - podSelector:
             matchLabels:
+{{- with .Values.tokenBroker.onepasswordConnect.egress.podSelector }}
+{{ toYaml . | nindent 14 }}
+{{- else }}
               app: {{ include "centaur.onepasswordConnectAppName" . | quote }}
+{{- end }}
+{{- with .Values.tokenBroker.onepasswordConnect.egress.namespaceSelector }}
+          namespaceSelector:
+            matchLabels:
+{{ toYaml . | nindent 14 }}
+{{- end }}
       ports:
         - protocol: TCP
-          port: {{ include "centaur.onepasswordConnectPort" . }}
+          port: {{ default (include "centaur.onepasswordConnectPort" .) .Values.tokenBroker.onepasswordConnect.egress.port }}
 {{- end }}
 ---
 # Let iron-proxy pods reach the broker. The default-deny policy in this

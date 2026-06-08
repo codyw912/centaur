@@ -50,6 +50,10 @@ toolServer:
 # rewrites the refresh-token blob on every rotation.
 tokenBroker:
   enabled: false
+  # Secret backend used by iron-token-broker. Defaults to ironProxy.secretSource
+  # for backward compatibility. Set only when the broker uses a different
+  # credential ownership path than normal runtime/proxy secret resolution.
+  secretSource: ""
   image:
     repository: ironsh/iron-token-broker
     tag: 0.0.1-rc.2
@@ -67,6 +71,25 @@ tokenBroker:
   # writable vault served by a broker-only service account.
   opVault: ""
   onepasswordServiceAccountTokenKey: OP_SERVICE_ACCOUNT_TOKEN
+  onepasswordConnect:
+    # Defaults to the release's in-cluster 1Password Connect URL.
+    host: ""
+    # Defaults to the shared infra Secret only when tokenKey is unset. When
+    # tokenKey is set, the broker uses a broker-only Secret named
+    # "<release>-token-broker-env" unless this is explicitly overridden.
+    tokenSecretName: ""
+    # Defaults to OP_CONNECT_TOKEN. Set to a different key, for example
+    # TOKEN_BROKER_OP_CONNECT_TOKEN, to keep broker Connect access separate
+    # from the runtime/proxy Connect token.
+    tokenKey: ""
+    egress:
+      # Optional matchLabels for the Connect API Pod when host points at a
+      # broker-specific Connect deployment. Defaults to the chart-managed
+      # onepasswordConnect app label.
+      podSelector: {}
+      namespaceSelector: {}
+      # Defaults to onepasswordConnect.connect.api.httpPort.
+      port: 0
   resources: {}
 
 # iron-control — Rails control plane for authenticated API access + encrypted

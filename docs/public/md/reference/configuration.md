@@ -22,6 +22,22 @@ Tool credentials are not listed here. Tool plugins declare their own secrets in
 `tools/**/pyproject.toml`; Centaur resolves them through `secret(...)` and
 iron-proxy instead of treating them as global platform configuration.
 
+## Helm Values
+
+Common chart values that affect secret ownership:
+
+| Value | Default | Controls |
+| --- | --- | --- |
+| `ironProxy.secretSource` | `onepassword` | Secret source used by runtime iron-proxy instances. |
+| `tokenBroker.enabled` | `false` | Deploys iron-token-broker for brokered OAuth refresh-token state. |
+| `tokenBroker.secretSource` | inherits `ironProxy.secretSource` | Secret source used by iron-token-broker when rendering broker credential refs. |
+| `tokenBroker.opVault` | `""` | Dedicated 1Password vault for brokered OAuth items; falls back to `OP_VAULT`. |
+| `tokenBroker.onepasswordServiceAccountTokenKey` | `OP_SERVICE_ACCOUNT_TOKEN` | Secret key used for broker 1Password service-account auth when `tokenBroker.secretSource` is `onepassword`. |
+| `tokenBroker.onepasswordConnect.host` | chart-managed Connect URL | Connect endpoint used only by the token-broker pod. |
+| `tokenBroker.onepasswordConnect.tokenSecretName` | `centaur-infra-env` for inherited `OP_CONNECT_TOKEN`, otherwise `<release>-token-broker-env` | Secret containing the broker Connect token. |
+| `tokenBroker.onepasswordConnect.tokenKey` | `OP_CONNECT_TOKEN` | Secret key projected into the token-broker pod as `OP_CONNECT_TOKEN`. Set to `TOKEN_BROKER_OP_CONNECT_TOKEN` for a broker-specific Connect token. |
+| `tokenBroker.onepasswordConnect.egress.*` | chart-managed Connect pod/port | NetworkPolicy selector and port when the broker uses a separate Connect service. |
+
 ## Required
 
 These must exist for the normal Helm deployment. For local development,
@@ -46,6 +62,8 @@ Optional required-by-mode variables:
 | `OP_CONNECT_CREDENTIALS_FILE` | Local shell before `just deploy`. | Enables the 1Password Connect subchart and creates its credentials Secret. |
 | `OP_CONNECT_TOKEN` | Secret or local bootstrap shell env. | Token used by iron-proxy when `ironProxy.secretSource=onepassword-connect`. |
 | `TOKEN_BROKER_OP_VAULT` | Optional local shell before `just deploy`; maps to `tokenBroker.opVault`. | Dedicated 1Password vault for iron-token-broker refs; falls back to `OP_VAULT`. |
+| `TOKEN_BROKER_OP_CONNECT_TOKEN` | Optional local shell for `just bootstrap-secrets`; stored in `${CENTAUR_RELEASE:-centaur}-token-broker-env` unless `TOKEN_BROKER_CONNECT_SECRET_NAME` is set. | Broker-specific 1Password Connect token for `tokenBroker.onepasswordConnect.tokenKey=TOKEN_BROKER_OP_CONNECT_TOKEN`. It is not stored in `centaur-infra-env`. |
+| `TOKEN_BROKER_CONNECT_SECRET_NAME` | Optional local shell for `just bootstrap-secrets` and `just deploy`. | Overrides the broker-only Kubernetes Secret name that holds `TOKEN_BROKER_OP_CONNECT_TOKEN`. |
 | `LOCAL_DEV_API_KEY` | API env. | Static local admin/dev key bootstrapped into Postgres. |
 
 ## API
@@ -133,6 +151,7 @@ Kubernetes backend:
 | `KUBERNETES_SECRET_ENV_NAME`, `KUBERNETES_SECRET_ENV_PREFIX`, `KUBERNETES_BOOTSTRAP_SECRET_NAME` | `secretManager.*`, `secrets.bootstrapSecretName`. | Secrets read by API-created proxy/sandbox pods. |
 | `KUBERNETES_IRON_PROXY_IMAGE`, `KUBERNETES_IRON_PROXY_IMAGE_PULL_POLICY`, `KUBERNETES_IRON_PROXY_PORT`, `KUBERNETES_IRON_PROXY_MANAGEMENT_PORT`, `KUBERNETES_IRON_PROXY_HEALTH_PORT` | `ironProxy.*`. | Per-sandbox iron-proxy image and ports. |
 | `FIREWALL_MANAGER_SECRET_SOURCE`, `FIREWALL_MANAGER_SECRET_TTL`, `KUBERNETES_FIREWALL_MANAGER_SECRET_SOURCE` | `ironProxy.secretSource`, `ironProxy.secretTtl`. | Secret source and cache TTL for rendered proxy config. |
+| `TOKEN_BROKER_SECRET_SOURCE` | `tokenBroker.secretSource`, defaulting to `ironProxy.secretSource`. | Secret source used when rendering iron-token-broker credential refs. |
 | `KUBERNETES_OP_CONNECT_HOST`, `KUBERNETES_OP_CONNECT_APP_NAME`, `KUBERNETES_OP_CONNECT_PORT` | Chart helper or `api.extraEnv`. | 1Password Connect endpoint details. |
 | `KUBERNETES_API_POD_LABEL_SELECTOR` | Chart-rendered labels or `api.extraEnv`. | API pod selector for API-managed proxy policies. |
 | `KUBERNETES_EGRESS_DISCOVERY_ENABLED`, `KUBERNETES_EGRESS_SERVICE_NAMESPACE`, `KUBERNETES_CLUSTER_DOMAIN`, `KUBERNETES_EGRESS_TAILNET_FQDN_ANNOTATION` | `api.egressDiscovery.*`. | Egress service discovery for sandbox NetworkPolicies. |

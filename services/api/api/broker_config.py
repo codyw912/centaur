@@ -61,7 +61,11 @@ _READ_SOURCES: dict[str, str] = {
 
 
 def _secret_source_kind() -> str:
-    return os.environ.get("FIREWALL_MANAGER_SECRET_SOURCE", "env").strip().lower()
+    return (
+        os.environ.get("TOKEN_BROKER_SECRET_SOURCE")
+        or os.environ.get("FIREWALL_MANAGER_SECRET_SOURCE")
+        or "env"
+    ).strip().lower()
 
 
 def _op_vault() -> str:

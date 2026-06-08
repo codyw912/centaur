@@ -48,6 +48,48 @@
         "port": { "type": "integer" }
       }
     },
+    "tokenBroker": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretSource": { "type": "string" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string" }
+          }
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "httpPort": { "type": "integer" },
+            "metricsPort": { "type": "integer" }
+          }
+        },
+        "ttl": { "type": "string" },
+        "opVault": { "type": "string" },
+        "onepasswordServiceAccountTokenKey": { "type": "string" },
+        "onepasswordConnect": {
+          "type": "object",
+          "properties": {
+            "host": { "type": "string" },
+            "tokenSecretName": { "type": "string" },
+            "tokenKey": { "type": "string" },
+            "egress": {
+              "type": "object",
+              "properties": {
+                "podSelector": { "type": "object" },
+                "namespaceSelector": { "type": "object" },
+                "port": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "resources": { "type": "object" }
+      }
+    },
     "ironControl": {
       "type": "object",
       "properties": {

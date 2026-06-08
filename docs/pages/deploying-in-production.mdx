@@ -146,9 +146,9 @@ For least privilege with the 1Password service-account source, keep the normal
 dedicated vault:
 
 ```bash
-export OP_VAULT=Agents
+export OP_VAULT=centaur-runtime-secrets
 export OP_SERVICE_ACCOUNT_TOKEN=... # read-only for normal API/tool secrets
-export TOKEN_BROKER_OP_VAULT=CentaurBrokerTokens
+export TOKEN_BROKER_OP_VAULT=centaur-broker-tokens
 export TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN=... # read/write only for broker vault
 just bootstrap-secrets
 CODEX_AUTH_MODE=access_token just deploy
@@ -170,7 +170,7 @@ create or update the Codex items. Point it at both vaults:
 ```bash
 codex login
 unset OP_SERVICE_ACCOUNT_TOKEN # if your shell has the read-only runtime token
-OP_VAULT=Agents TOKEN_BROKER_OP_VAULT="Broker Tokens" \
+OP_VAULT=centaur-runtime-secrets TOKEN_BROKER_OP_VAULT=centaur-broker-tokens \
   contrib/scripts/bootstrap-codex-1password.sh
 ```
 

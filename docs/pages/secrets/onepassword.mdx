@@ -123,7 +123,7 @@ optional helper can create or update the expected 1Password items from a local
 ```bash
 codex login
 unset OP_SERVICE_ACCOUNT_TOKEN # if your shell has the read-only runtime token
-OP_VAULT=Agents TOKEN_BROKER_OP_VAULT="Broker Tokens" \
+OP_VAULT=centaur-runtime-secrets TOKEN_BROKER_OP_VAULT=centaur-broker-tokens \
   contrib/scripts/bootstrap-codex-1password.sh
 ```
 
@@ -150,9 +150,9 @@ For least privilege with service accounts, use a separate writable broker vault
 and token instead of granting write access to the normal `OP_VAULT`:
 
 ```bash
-export OP_VAULT=Agents
+export OP_VAULT=centaur-runtime-secrets
 export OP_SERVICE_ACCOUNT_TOKEN=... # read-only
-export TOKEN_BROKER_OP_VAULT=CentaurBrokerTokens
+export TOKEN_BROKER_OP_VAULT=centaur-broker-tokens
 export TOKEN_BROKER_OP_SERVICE_ACCOUNT_TOKEN=... # read/write for broker vault
 just bootstrap-secrets
 CODEX_AUTH_MODE=access_token just deploy

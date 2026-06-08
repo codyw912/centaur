@@ -37,7 +37,7 @@ with the same names and credential field.
 
 Run this helper with an `op` identity that can create/update items in both
 target vaults. If OP_SERVICE_ACCOUNT_TOKEN is exported for Centaur runtime
-bootstrap and is read-only, unset it before running this helper so `op` can use
+bootstrap and is read-only, clear it before running this helper so `op` can use
 your normal desktop/account sign-in instead.
 EOF
 }
